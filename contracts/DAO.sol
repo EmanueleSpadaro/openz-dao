@@ -3,6 +3,8 @@ pragma solidity ^0.8.12;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
+// Implementation questions
+// 1. Whenever a user that has a pending invite joins autonomously the DAO, shall we assign him the USER_ROLE or the invitation one?
 
 contract DAO is AccessControl {
     //External project requirement, it states "dao" to distinguish the DAO from standard user
@@ -29,16 +31,26 @@ contract DAO is AccessControl {
     bytes32 public constant USER_ROLE = keccak256("USER_ROLE");
 
     mapping(address => bytes32) usersRole;
+    mapping (address=>bytes32) invites;
+    //todo mapping(bytes32 => bool) validRoles; to check if the assigned roles are permitted?
 
-    modifier isMember() {
-        //todo maybe implement the modifier so that if checkee is 0x00 it manages the msg.sender or checkee
-        require(usersRole[msg.sender] != 0x00, "you're required to be a member");
+    modifier isMember(address addr) {
+        require(usersRole[addr] != 0x00, "you're required to be a member");
         _;
     }
 
-    modifier isNotMember() {
-        //todo maybe implement the modifier so that if checkee is 0x00 it manages the msg.sender or checkee
-        require(usersRole[msg.sender] == 0x00, "you're required to not be a member");
+    modifier isNotMember(address addr) {
+        require(usersRole[addr] == 0x00, "you're required to not be a member");
+        _;
+    }
+
+    modifier hasInvite() {
+        require(invites[msg.sender] != 0, "no invite available for you");
+        _;
+    }
+
+    modifier isAdminOf(address ofAddress) {
+        require(isAdminOfRole(msg.sender, usersRole[ofAddress]), "you're required to be of higher rank");
         _;
     }
 
@@ -60,11 +72,7 @@ contract DAO is AccessControl {
         _setRoleAdmin(USER_ROLE, SUPERVISOR_ROLE);
     }
 
-    //todo farlo modifier? si o no?
-    function isAdminOfRole(address isAdmin, bytes32 ofRole) public view returns(bool){
-        //todo caller && callee should be members
-        bytes32 isAdminRole = usersRole[isAdmin];
-        //We retrieve the callee's first upper admin role in the hierarchy to go up the ladder
+    function isAdminOfRole(bytes32 isAdminRole, bytes32 ofRole) public view returns(bool){
         bytes32 ofRoleAdminRole = getRoleAdmin(ofRole);
         while(ofRoleAdminRole != DEFAULT_ADMIN_ROLE){
             if(ofRoleAdminRole == isAdminRole){
@@ -72,34 +80,27 @@ contract DAO is AccessControl {
             }
             ofRoleAdminRole = getRoleAdmin(ofRoleAdminRole);
         }
-        return hasRole(DEFAULT_ADMIN_ROLE, isAdmin);
+        return isAdminRole == DEFAULT_ADMIN_ROLE;
     }
 
-    modifier isAdminOf(address ofAddress) {
-        require(isAdminOfRole(msg.sender, usersRole[ofAddress]), "you're required to be of higher rank");
-        _;
+    function isAdminOfRole(address isAdmin, bytes32 ofRole) public view returns(bool){
+        return isAdminOfRole(usersRole[isAdmin], ofRole);
     }
 
-
-
-    function join() public isNotMember {
+    //Joins the DAO
+    function join() public isNotMember(msg.sender) {
         require(!isInviteOnly, "can't freely join invite-only dao");
+        //todo We assign USER_ROLE, or if there's an invitation pending for msg.sender, the respective invitation role?
         usersRole[msg.sender] = USER_ROLE;
         _grantRole(USER_ROLE, msg.sender);
+        //todo shall I emit an event?
     }
-    //If there's an actual invite for msg.sender
-    modifier hasInvite() {
-        require(invites[msg.sender] != 0, "no invite available for you");
-        _;
-    }
-    mapping (address=>bytes32) invites;
-
-    function invite(address toInvite, bytes32 offeredRole) public {
-        //todo require that toInvite isnt an actual member, there would be no reason to let people invite an already member
+    
+    //Invites a user with the given role to join the DAO
+    function invite(address toInvite, bytes32 offeredRole) public isMember(msg.sender) isNotMember(toInvite) {
         require(isAdminOfRole(msg.sender, offeredRole), "not enough permissions to invite as given role");
-        require(usersRole[toInvite] == 0x00, "cannot invite an already member");
-        // require(hasRole(getRoleAdmin(offeredRole), msg.sender), "not enough permissions to invite as given role");
         invites[toInvite] = offeredRole;
+        //todo shall I emit an event?
     }
 
     //Accepts an invite to the DAO
@@ -109,12 +110,30 @@ contract DAO is AccessControl {
         _grantRole(invites[msg.sender], msg.sender);
         //We delete the invite since it's been accepted
         invites[msg.sender] = 0;
+        //todo shall I emit an event?
     }
+
     //Declines an invite to the DAO
     function declineInvite() public hasInvite{
         //We delete the invite since it's been declined
         invites[msg.sender] = 0;
+        //Shall I emit an event?
     }
 
+    //Sets the rank of the given user to a new one, if we have enough permissions
+    function modifyRank(address toModify, bytes32 newRole) public isMember(toModify) isAdminOf(toModify) {
+        //todo implement promotion/demotion rank accordingly to isPromotion if required
+        //bool isPromotion = isAdminOfRole(newRole, usersRole[toModify]);
+        _revokeRole(usersRole[toModify], toModify);
+        usersRole[toModify] = newRole;
+        _grantRole(newRole, toModify);
+        //todo implement event? if so, shall i distinguish promotion && demotion?
+    }
 
+    //Kicks a member if we have enough permissions
+    function kickMember(address toKick) public isMember(toKick) isAdminOf(toKick) {
+        _revokeRole(usersRole[toKick], toKick);
+        usersRole[toKick] = 0;
+        //todo implement event?
+    }
 }

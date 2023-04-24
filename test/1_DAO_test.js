@@ -45,16 +45,6 @@ contract("DAO", (accounts) => {
         })
     })
 
-    //This section aims to ensure that the custom isAdminOf goes up the rank ladder to ensure that we recognize, for example, OWNER, as upper admin of USER
-    // describe("Custom Method Hierarchy test", _ => {
-    //     it("User has Admin as upperRole", async () => {
-    //         const daoInstance = await DaoContract.deployed();
-    //         assert.equal(
-    //             await daoInstance.isAdminOf(user), true, "owner should be user's upper admin"
-    //         )
-    //     })
-    // })
-
     //This section ensures that invites work properly
     describe("Invite hierarchy compliance", _ => {
         it("First account is Owner", async () => {
@@ -177,24 +167,89 @@ contract("DAO", (accounts) => {
                 "Future Supervisor should be considered a Supervisor after accepting the invite"
             );
         })
+    });
+
+    describe("Promotion/Demotion system", _ => {
+        it("Owner promotes User-Supervisor->Admin", async () => {
+            const daoInstance = await DaoContract.deployed();
+            //user->supervisor
+            try{
+                await daoInstance.modifyRank(user, await daoInstance.SUPERVISOR_ROLE());
+            }catch(_){
+                throw new Error("Owner should be allowed to promote a User");
+            }
+            assert.equal(
+                await daoInstance.hasRole(await daoInstance.USER_ROLE(), user),
+                false,
+                "User shouldn't be considered as such after being promoted"
+            );
+            assert.equal(
+                await daoInstance.hasRole(await daoInstance.SUPERVISOR_ROLE(), user),
+                true,
+                "User should be considered a Supervisor after being promoted"
+            );
+            //supervisor->admin
+            try{
+                await daoInstance.modifyRank(user, await daoInstance.ADMIN_ROLE());
+            }catch(_){
+                throw new Error("Owner should be allowed to promote a Supervisor");
+            }
+            assert.equal(
+                await daoInstance.hasRole(await daoInstance.SUPERVISOR_ROLE(), user),
+                false,
+                "Supervisor shouldn't be considered as such after being promoted"
+            );
+            assert.equal(
+                await daoInstance.hasRole(await daoInstance.ADMIN_ROLE(), user),
+                true,
+                "Supervisor should be considered an Admin after being promoted"
+            );
+        })
+        it("Same role members can't modify each others ranks", async () => {
+            const daoInstance = await DaoContract.deployed();
+            try{
+                //User is set as Admin with the previous test iteration
+                await daoInstance.modifyRank(user, await daoInstance.USER_ROLE(), {from: admin});
+            }catch(_){
+                return true;
+            }
+            throw new Error("Same role members shouldn't be allowed to modify each others ranks");
+        })
+        it("Owner demotes Admin->Supervisor->User", async () => {
+            const daoInstance = await DaoContract.deployed();
+            //admin->supervisor
+            try{
+                await daoInstance.modifyRank(user, await daoInstance.SUPERVISOR_ROLE());
+            }catch(_){
+                throw new Error("Owner should be allowed to demote an Admin");
+            }
+            assert.equal(
+                await daoInstance.hasRole(await daoInstance.ADMIN_ROLE(), user),
+                false,
+                "Admin shouldn't be considered as such after being demoted"
+            );
+            assert.equal(
+                await daoInstance.hasRole(await daoInstance.SUPERVISOR_ROLE(), user),
+                true,
+                "Admin should be considered a Supervisor after being demoted"
+            );
+            //supervisor->user
+            try{
+                await daoInstance.modifyRank(user, await daoInstance.USER_ROLE());
+            }catch(_){
+                throw new Error("Owner should be allowed to demote a Supervisor");
+            }
+            assert.equal(
+                await daoInstance.hasRole(await daoInstance.SUPERVISOR_ROLE(), user),
+                false,
+                "Supervisor shouldn't be considered as such after being demoted"
+            );
+            assert.equal(
+                await daoInstance.hasRole(await daoInstance.USER_ROLE(), user),
+                true,
+                "Supervisor should be considered a User after being demoted"
+            );
+        })
     })
-
-    
-    // it("Fourth account joins freely joinable dao as user", async () => {
-    //     const daoInstance = await DaoContract.deployed();
-    //     await daoInstance.join({from: user});
-    //     assert.equal(await daoInstance.hasRole(await daoInstance.USER_ROLE(), user), true, "fourth user should be user");
-    // })
-    // it("Second account shouldn't be user", async () => {
-    //     const daoInstance = await DaoContract.deployed();
-    //     assert.equal(await daoInstance.hasRole(await daoInstance.USER_ROLE(), admin), false, "second user shouldn't be user");
-    // })
-    // it("Owner shall be higher admin of fourth user even though it's not OpenZeppelin admin", async () => {
-    //     const daoInstance = await DaoContract.deployed();
-    //     assert.equal(
-    //         await daoInstance.isAdminOf(user, {from: owner}), true, "owner should be user's upper admin"
-    //     )
-    // })
-
 });
 
