@@ -34,25 +34,40 @@ contract DAO is AccessControl {
     mapping (address=>bytes32) invites;
     //todo mapping(bytes32 => bool) validRoles; to check if the assigned roles are permitted?
 
+    //Modifier that allows to execute the code only if the caller IS a member
     modifier isMember(address addr) {
         require(usersRole[addr] != 0x00, "you're required to be a member");
         _;
     }
 
+    //Modifier that allows to execute the code only if the caller IS NOT a member
     modifier isNotMember(address addr) {
         require(usersRole[addr] == 0x00, "you're required to not be a member");
         _;
     }
 
+    //Modifier that allows to execute the code only if the caller has a pending invitation
     modifier hasInvite() {
         require(invites[msg.sender] != 0, "no invite available for you");
         _;
     }
 
+    //Modifier that allows to execute the code only if the caller is hierarchically superior in terms of rank
     modifier isAdminOf(address ofAddress) {
         require(isAdminOfRole(msg.sender, usersRole[ofAddress]), "you're required to be of higher rank");
         _;
     }
+
+    //Modifier that extends the behaviour achievable with onlyRole(getRoleAdmin(role)) to hierarchically superior ranks 
+    modifier onlyAdmins(bytes32 role) {
+        require(isAdminOfRole(msg.sender, role), "only higher ranks of the given role are allowed");
+        _;
+    }
+
+    event UserJoined(address indexed user, bytes32 asRole);
+    event UserInvited(address indexed by, address user);
+    event UserRankChanged(address indexed by, address user, bytes32 toRole, bool isPromotion);
+    event UserKicked(address indexed by, address user);
 
     constructor(
 
@@ -63,7 +78,6 @@ contract DAO is AccessControl {
         firstlifePlaceID = "paoloBorsellinoFID";
         description_cid = "La best residenza da quittare asap";
         isInviteOnly = false;
-        usersRole[msg.sender] = OWNER_ROLE;
         _grantRole(OWNER_ROLE, msg.sender);
         //We setup the role hierarchy in terms of admin role:
         //OWNER -> ADMIN -> SUPERVISOR -> USER
@@ -91,49 +105,67 @@ contract DAO is AccessControl {
     function join() public isNotMember(msg.sender) {
         require(!isInviteOnly, "can't freely join invite-only dao");
         //todo We assign USER_ROLE, or if there's an invitation pending for msg.sender, the respective invitation role?
-        usersRole[msg.sender] = USER_ROLE;
+        //bytes32 joinRole = invites[msg.sender] == 0 ? USER_ROLE : invites[msg.sender];
+        //invites[msg.sender] = 0; //or we could just call acceptInvite if invites[msg.sender] != 0
         _grantRole(USER_ROLE, msg.sender);
-        //todo shall I emit an event?
+        emit UserJoined(msg.sender, USER_ROLE);
     }
     
     //Invites a user with the given role to join the DAO
-    function invite(address toInvite, bytes32 offeredRole) public isMember(msg.sender) isNotMember(toInvite) {
-        require(isAdminOfRole(msg.sender, offeredRole), "not enough permissions to invite as given role");
+    function invite(address toInvite, bytes32 offeredRole) public isMember(msg.sender) isNotMember(toInvite) onlyAdmins(offeredRole) {
         invites[toInvite] = offeredRole;
-        //todo shall I emit an event?
+        emit UserInvited(msg.sender, toInvite);
     }
 
     //Accepts an invite to the DAO
     function acceptInvite() public hasInvite{
         //We assign the role
-        usersRole[msg.sender] = invites[msg.sender];
         _grantRole(invites[msg.sender], msg.sender);
         //We delete the invite since it's been accepted
         invites[msg.sender] = 0;
-        //todo shall I emit an event?
+        emit UserJoined(msg.sender, usersRole[msg.sender]);
     }
 
     //Declines an invite to the DAO
     function declineInvite() public hasInvite{
         //We delete the invite since it's been declined
         invites[msg.sender] = 0;
-        //Shall I emit an event?
+        //todo Shall I emit an event?
     }
 
     //Sets the rank of the given user to a new one, if we have enough permissions
-    function modifyRank(address toModify, bytes32 newRole) public isMember(toModify) isAdminOf(toModify) {
-        //todo implement promotion/demotion rank accordingly to isPromotion if required
-        //bool isPromotion = isAdminOfRole(newRole, usersRole[toModify]);
+    function modifyRank(address toModify, bytes32 newRole) public isMember(toModify) isAdminOf(toModify) onlyAdmins(newRole) {
+        bool isPromotion = isAdminOfRole(newRole, usersRole[toModify]);
         _revokeRole(usersRole[toModify], toModify);
-        usersRole[toModify] = newRole;
         _grantRole(newRole, toModify);
-        //todo implement event? if so, shall i distinguish promotion && demotion?
+        emit UserRankChanged(msg.sender, toModify, newRole, isPromotion);
     }
 
     //Kicks a member if we have enough permissions
     function kickMember(address toKick) public isMember(toKick) isAdminOf(toKick) {
         _revokeRole(usersRole[toKick], toKick);
-        usersRole[toKick] = 0;
-        //todo implement event?
+        emit UserKicked(msg.sender, toKick);
+    }
+
+    //Extended safe grantRole: allows only hierarchically superior ranks to execute it
+    function grantRole(bytes32 role, address account) public virtual override onlyAdmins(role) isAdminOf(account) {
+        _grantRole(role, account);
+    }
+
+    //Extended safe grantRole: allows only hierarchically superior ranks to execute it
+    function revokeRole(bytes32 role, address account) public virtual override onlyAdmins(role) isAdminOf(account) {
+        _revokeRole(role, account);
+    }
+
+    //Writes the new role to the role mapping, and then calls the base method
+    function _grantRole(bytes32 role, address account) internal override {
+        usersRole[account] = role;
+        super._grantRole(role, account);
+    }
+
+    //Deletes the users role mapping value, and then calls the base method
+    function _revokeRole(bytes32 role, address account) internal override {
+        delete usersRole[account];
+        super._revokeRole(role, account);
     }
 }
