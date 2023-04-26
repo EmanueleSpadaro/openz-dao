@@ -205,7 +205,7 @@ contract("DAO", (accounts) => {
                 "Supervisor should be considered an Admin after being promoted"
             );
         })
-        it("Same role members can't modify each others ranks", async () => {
+        it("Same role members can't modify each others", async () => {
             const daoInstance = await DaoContract.deployed();
             try{
                 //User is set as Admin with the previous test iteration
@@ -213,7 +213,16 @@ contract("DAO", (accounts) => {
             }catch(_){
                 return true;
             }
-            throw new Error("Same role members shouldn't be allowed to modify each others ranks");
+            throw new Error("Same role members shouldn't be allowed to modify each others");
+        })
+        it("Same role members can't kick each others", async () => {
+            const daoInstance = await DaoContract.deployed();
+            try{
+                await daoInstance.kickMember(user, {from:admin});
+            }catch(_){
+                return true;
+            }
+            throw new Error("Same role members shouldn't be allowed to kick each others");
         })
         it("Owner demotes Admin->Supervisor->User", async () => {
             const daoInstance = await DaoContract.deployed();
@@ -249,6 +258,19 @@ contract("DAO", (accounts) => {
                 true,
                 "Supervisor should be considered a User after being demoted"
             );
+        })
+        it("Owner kicks member (member joins back right after)", async () => {
+            const daoInstance = await DaoContract.deployed();
+            try{
+                await daoInstance.kickMember(user);
+            }catch(_){
+                throw new Error("Owner should be alllowed to kick a User");
+            }
+            try{
+                await daoInstance.join({from: user});
+            }catch(_){
+                throw new Error("User that got kicked couldn't join freely-joinable DAO");
+            }
         })
     })
 });
