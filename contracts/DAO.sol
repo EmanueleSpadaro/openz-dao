@@ -3,9 +3,6 @@ pragma solidity ^0.8.12;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
-// Implementation questions
-// 1. Whenever a user that has a pending invite joins autonomously the DAO, shall we assign him the USER_ROLE or the invitation one?
-
 contract DAO is AccessControl {
     //External project requirement, it states "dao" to distinguish the DAO from standard user
     string public realm;
@@ -104,9 +101,7 @@ contract DAO is AccessControl {
     //Joins the DAO
     function join() public isNotMember(msg.sender) {
         require(!isInviteOnly, "can't freely join invite-only dao");
-        //todo We assign USER_ROLE, or if there's an invitation pending for msg.sender, the respective invitation role?
-        //bytes32 joinRole = invites[msg.sender] == 0 ? USER_ROLE : invites[msg.sender];
-        //invites[msg.sender] = 0; //or we could just call acceptInvite if invites[msg.sender] != 0
+        delete invites[msg.sender];
         _grantRole(USER_ROLE, msg.sender);
         emit UserJoined(msg.sender, USER_ROLE);
     }
@@ -130,7 +125,6 @@ contract DAO is AccessControl {
     function declineInvite() public hasInvite{
         //We delete the invite since it's been declined
         invites[msg.sender] = 0;
-        //todo Shall I emit an event?
     }
 
     //Sets the rank of the given user to a new one, if we have enough permissions
