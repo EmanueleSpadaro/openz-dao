@@ -170,11 +170,12 @@ contract("DAO", (accounts) => {
     });
 
     describe("Promotion/Demotion system", _ => {
-        it("Owner promotes User-Supervisor->Admin", async () => {
+        it("2Phase Promotion User-Supervisor->Admin", async () => {
             const daoInstance = await DaoContract.deployed();
             //user->supervisor
             try{
                 await daoInstance.modifyRank(user, await daoInstance.SUPERVISOR_ROLE());
+                await daoInstance.acceptPromotion({from: user});
             }catch(_){
                 throw new Error("Owner should be allowed to promote a User");
             }
@@ -191,6 +192,7 @@ contract("DAO", (accounts) => {
             //supervisor->admin
             try{
                 await daoInstance.modifyRank(user, await daoInstance.ADMIN_ROLE());
+                await daoInstance.acceptPromotion({from: user});
             }catch(_){
                 throw new Error("Owner should be allowed to promote a Supervisor");
             }
@@ -224,7 +226,7 @@ contract("DAO", (accounts) => {
             }
             throw new Error("Same role members shouldn't be allowed to kick each others");
         })
-        it("Owner demotes Admin->Supervisor->User", async () => {
+        it("1Phase Derank Admin->Supervisor->User", async () => {
             const daoInstance = await DaoContract.deployed();
             //admin->supervisor
             try{
@@ -258,6 +260,19 @@ contract("DAO", (accounts) => {
                 true,
                 "Supervisor should be considered a User after being demoted"
             );
+        })
+        it("User can't accept/refuse non-existant promotion", async () => {
+            const daoInstance = await DaoContract.deployed();
+            try{
+                await daoInstance.acceptPromotion({from: user});
+            }catch(_){
+            try{
+                await daoInstance.refusePromotion({from:user});
+            }catch(_){
+                return true;
+            }
+            }
+            throw new Error("User shouldn't be allowed to accept or refuse no-existant promotions");
         })
         it("Owner kicks member (member joins back right after)", async () => {
             const daoInstance = await DaoContract.deployed();

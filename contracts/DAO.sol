@@ -28,7 +28,8 @@ contract DAO is AccessControl {
     bytes32 public constant USER_ROLE = keccak256("USER_ROLE");
 
     mapping(address => bytes32) usersRole;
-    mapping (address=>bytes32) invites;
+    mapping(address => bytes32) invites;
+    mapping(address => bytes32) promotions;
     //todo mapping(bytes32 => bool) validRoles; to check if the assigned roles are permitted?
 
     //Modifier that allows to execute the code only if the caller IS a member
@@ -49,6 +50,12 @@ contract DAO is AccessControl {
         _;
     }
 
+    //Modifier that allows to execute the code only if the caller has a pending promotion
+    modifier hasPromotion() {
+        require(promotions[msg.sender] != 0, "no promotion pending");
+        _;
+    }
+
     //Modifier that allows to execute the code only if the caller is hierarchically superior in terms of rank
     modifier isAdminOf(address ofAddress) {
         require(isAdminOfRole(msg.sender, usersRole[ofAddress]), "you're required to be of higher rank");
@@ -63,7 +70,9 @@ contract DAO is AccessControl {
 
     event UserJoined(address indexed user, bytes32 asRole);
     event UserInvited(address indexed by, address user);
-    event UserRankChanged(address indexed by, address user, bytes32 toRole, bool isPromotion);
+    event UserDeranked(address indexed by, address user, bytes32 toRole);
+    event UserPromotionProposed(address indexed by, address user, bytes32 toRole);
+    event UserPromoted(address indexed user, bytes32 toRole);
     event UserKicked(address indexed by, address user);
 
     constructor(
@@ -127,16 +136,39 @@ contract DAO is AccessControl {
         invites[msg.sender] = 0;
     }
 
-    //Sets the rank of the given user to a new one, if we have enough permissions
+    //Offers a promotion if the new role is higher than the current one, otherwise it deranks instantly, if we have enough permissions
     function modifyRank(address toModify, bytes32 newRole) public isMember(toModify) isAdminOf(toModify) onlyAdmins(newRole) {
         bool isPromotion = isAdminOfRole(newRole, usersRole[toModify]);
+        //If there's a pending promotion, we delete it whether it's a promotion or not
+        delete promotions[toModify];
+        //If it's a promotion, there is a 2Phase (offer && accept/refuse)
+        if(isPromotion){
+            promotions[toModify] = newRole;
+            emit UserPromotionProposed(msg.sender, toModify, newRole);
+            return;
+        }
+        //If it's not a promotion, we just revoke the role and emit the event
         _revokeRole(usersRole[toModify], toModify);
         _grantRole(newRole, toModify);
-        emit UserRankChanged(msg.sender, toModify, newRole, isPromotion);
+        emit UserDeranked(msg.sender, toModify, newRole);
+    }
+
+    function acceptPromotion() public isMember(msg.sender) hasPromotion {
+        _revokeRole(usersRole[msg.sender], msg.sender);
+        _grantRole(promotions[msg.sender], msg.sender);
+        delete promotions[msg.sender];
+        emit UserPromoted(msg.sender, usersRole[msg.sender]);
+    }
+
+    function refusePromotion() public isMember(msg.sender) hasPromotion {
+        delete promotions[msg.sender];
+        //todo shall I emit an event? (imho, no)
     }
 
     //Kicks a member if we have enough permissions
     function kickMember(address toKick) public isMember(toKick) isAdminOf(toKick) {
+        //We clear out possible promotions before kicking the member
+        delete promotions[toKick];
         _revokeRole(usersRole[toKick], toKick);
         emit UserKicked(msg.sender, toKick);
     }
