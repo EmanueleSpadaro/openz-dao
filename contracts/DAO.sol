@@ -30,7 +30,23 @@ contract DAO is AccessControl {
     mapping(address => bytes32) usersRole;
     mapping(address => bytes32) invites;
     mapping(address => bytes32) promotions;
-    //todo mapping(bytes32 => bool) validRoles; to check if the assigned roles are permitted?
+    mapping(bytes32 => mapping(DaoPermission => bool)) rolePermissions;
+    mapping(string => mapping(address => bool)) tokenAuthorization;
+
+    enum DaoPermission {
+        //Whether it can manage all tokens
+        token_all,
+        //Whether it can manage only specific tokens
+        token_specific,
+        //Whether it can transfer manageable tokens
+        token_transfer,
+        //Whether it can create tokens
+        token_create,
+        //Whether it can mint manageable tokens
+        token_mint,
+        //Whether it can authorize others to use a specific token
+        token_auth
+    }
 
     //Modifier that allows to execute the code only if the caller IS a member
     modifier isMember(address addr) {
@@ -68,6 +84,18 @@ contract DAO is AccessControl {
         _;
     }
 
+    modifier hasPermission(DaoPermission permission) {
+        require(rolePermissions[usersRole[msg.sender]][permission], "not enough permissions");
+        _;
+    }
+
+    modifier canManageToken(string memory tokenSymbol) {
+        require(getTokenAuth(tokenSymbol, msg.sender), "not authorized to manage token");
+        //require(hasPermissions(DaoPermission.token_all) || (hasPermissions(DaoPermission.token_specific) &&
+        //tokenAuthorization[tokenSymbol][msg.sender]), "not authorized to manage token");
+        _;
+    }
+
     event UserJoined(address indexed user, bytes32 asRole);
     event UserInvited(address indexed by, address user);
     event UserDeranked(address indexed by, address user, bytes32 toRole);
@@ -90,6 +118,10 @@ contract DAO is AccessControl {
         _setRoleAdmin(ADMIN_ROLE, OWNER_ROLE);
         _setRoleAdmin(SUPERVISOR_ROLE, ADMIN_ROLE);
         _setRoleAdmin(USER_ROLE, SUPERVISOR_ROLE);
+        //We setup the role permissions
+        _grantPermission(DaoPermission.token_all, OWNER_ROLE);
+        _grantPermission(DaoPermission.token_transfer, OWNER_ROLE);
+        _grantPermission(DaoPermission.token_specific, OWNER_ROLE);
     }
 
     function isAdminOfRole(bytes32 isAdminRole, bytes32 ofRole) public view returns(bool){
@@ -162,7 +194,6 @@ contract DAO is AccessControl {
 
     function refusePromotion() public isMember(msg.sender) hasPromotion {
         delete promotions[msg.sender];
-        //todo shall I emit an event? (imho, no)
     }
 
     //Kicks a member if we have enough permissions
@@ -171,6 +202,71 @@ contract DAO is AccessControl {
         delete promotions[toKick];
         _revokeRole(usersRole[toKick], toKick);
         emit UserKicked(msg.sender, toKick);
+    }
+
+    function transferToken(string memory symbol, uint256 amount, address to)
+    public isMember(msg.sender) hasPermission(DaoPermission.token_transfer) canManageToken(symbol){
+        //todo when user is kicked or permission changed between roles, reset the specific auths
+        //todo implement actual logic from commonshood
+    }
+
+    function createToken(string memory _name, string memory _symbol, uint8 _decimals, string memory _logoURL, string memory _logoHash, uint256 _hardCap, string memory _contractHash)
+    public isMember(msg.sender) hasPermission(DaoPermission.token_create) {
+        //todo implement actual logic from commonshood
+    }
+
+    function mintToken(string memory _name, uint256 _value)
+    public isMember(msg.sender) hasPermission(DaoPermission.token_mint) {
+        //todo implement actual logic from commonshood
+    }
+
+    function setTokenAuth(string memory symbol, address _address)
+    public isMember(msg.sender) canManageToken(symbol) hasPermission(DaoPermission.token_auth) {
+        require(tokenAuthorization[symbol][_address] == false,"Address already authorized for this Token");
+        tokenAuthorization[symbol][_address] = true;
+    }
+
+    function getTokenAuth(string memory tokenSymbol, address _address) public view returns (bool){
+        return rolePermissions[getRole(_address)][DaoPermission.token_all] ||
+        (rolePermissions[getRole(_address)][DaoPermission.token_specific] &&
+        tokenAuthorization[tokenSymbol][_address]);
+    }
+
+    //Returns if the users role has a specific permission
+    function hasPermissions(DaoPermission perm) public view returns (bool) {
+        return rolePermissions[getMyRole()][perm];
+    }
+
+    //Returns the caller's role
+    function getMyRole() public view returns(bytes32){
+        return usersRole[msg.sender];
+    }
+
+    //Returns the provided address' role
+    function getRole(address account) public view returns(bytes32){
+        return usersRole[account];
+    }
+
+    //Gives a permission to a lower role
+    function grantPermission(DaoPermission perm, bytes32 toRole)
+    internal isMember(msg.sender) onlyAdmins(toRole) hasPermission(perm) {
+        _grantPermission(perm, toRole);
+    }
+
+    //Revokes a permission to a lower role
+    function revokePermission(DaoPermission perm, bytes32 toRole)
+    internal isMember(msg.sender) onlyAdmins(toRole) hasPermission(perm) {
+        _revokePermission(perm, toRole);
+    }
+
+    //UNSAFELY Gives permissions to a role without checks
+    function _grantPermission(DaoPermission perm, bytes32 toRole) internal {
+        rolePermissions[toRole][perm] = true;
+    }
+
+    //UNSAFELY Revokes permissions to a role without checks
+    function _revokePermission(DaoPermission perm, bytes32 toRole) internal {
+        rolePermissions[toRole][perm] = false;
     }
 
     //Extended safe grantRole: allows only hierarchically superior ranks to execute it

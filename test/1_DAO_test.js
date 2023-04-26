@@ -7,7 +7,8 @@ contract("DAO", (accounts) => {
     const owner = accounts[0];
     const admin = accounts[1];
     const supervisor = accounts[2];
-    const user = accounts[3];
+    const supervisor2 = accounts[3];
+    const user = accounts[4];
 
     //This section aims to ensure that the given rank hierarchy is actually set correctly: OWNER > ADMIN > SUPERVISOR > USER
     describe("Hierarchy test", _ => {
@@ -149,6 +150,7 @@ contract("DAO", (accounts) => {
             const daoInstance = await DaoContract.deployed();
             try{
                 await daoInstance.invite(supervisor, await daoInstance.SUPERVISOR_ROLE(), {from:admin});
+                await daoInstance.invite(supervisor2, await daoInstance.SUPERVISOR_ROLE(), {from:admin});
             }catch(_){
                 throw new Error("Admin should be allowed to invite Future Supervisor as Supervisor");
             }
@@ -158,11 +160,13 @@ contract("DAO", (accounts) => {
             const daoInstance = await DaoContract.deployed();
             try{
                 await daoInstance.acceptInvite({from:supervisor});
+                await daoInstance.acceptInvite({from:supervisor2});
             }catch(_){
                 throw new Error("Future Supervisor should be allowed to accept the invite");
             }
             assert.equal(
-                await daoInstance.hasRole(await daoInstance.SUPERVISOR_ROLE(), supervisor),
+                await daoInstance.hasRole(await daoInstance.SUPERVISOR_ROLE(), supervisor)
+                && await daoInstance.hasRole(await daoInstance.SUPERVISOR_ROLE(), supervisor2),
                 true,
                 "Future Supervisor should be considered a Supervisor after accepting the invite"
             );
@@ -286,6 +290,12 @@ contract("DAO", (accounts) => {
             }catch(_){
                 throw new Error("User that got kicked couldn't join freely-joinable DAO");
             }
+        })
+    })
+    describe('Role based micro-permissions', _ => {
+        it("Owner can transfer token", async () => {
+            const daoInstance = await DaoContract.deployed();
+            await daoInstance.transferToken("EUR", 250, user);
         })
     })
 });
