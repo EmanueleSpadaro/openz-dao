@@ -31,7 +31,7 @@ contract DAO is AccessControl {
     mapping(address => bytes32) invites;
     mapping(address => bytes32) promotions;
     mapping(bytes32 => mapping(DaoPermission => bool)) rolePermissions;
-    mapping(string => mapping(address => bool)) tokenAuthorization;
+    mapping(address => mapping(string => bool)) tokenAuthorization;
     mapping(address => mapping(address => bool)) crowdsaleManagement;
     mapping(address => mapping(address => bool)) exchangeManagement;
 
@@ -73,7 +73,7 @@ contract DAO is AccessControl {
         exchange_accept,
         //Whether it can refill an exchange
         exchange_refill,
-        //Whether it can offer / revoke a DAO member (that has exchange_canmanage permission) management privileges regarding a specific crowdsale
+        //Whether it can offer / revoke a DAO member (that has exchange_canmanage permission) management privileges regarding a specific exchange
         exchange_setadmin,
         //Whether it can be set as exchange manager by members with exchange_setadmin permissions
         exchange_canmanage
@@ -150,9 +150,58 @@ contract DAO is AccessControl {
         _setRoleAdmin(SUPERVISOR_ROLE, ADMIN_ROLE);
         _setRoleAdmin(USER_ROLE, SUPERVISOR_ROLE);
         //We setup the role permissions
+        //OWNER
         _grantPermission(DaoPermission.token_all, OWNER_ROLE);
-        _grantPermission(DaoPermission.token_transfer, OWNER_ROLE);
         _grantPermission(DaoPermission.token_specific, OWNER_ROLE);
+        _grantPermission(DaoPermission.token_transfer, OWNER_ROLE);
+        _grantPermission(DaoPermission.token_create, OWNER_ROLE);
+        _grantPermission(DaoPermission.token_mint, OWNER_ROLE);
+        _grantPermission(DaoPermission.token_auth, OWNER_ROLE);
+        _grantPermission(DaoPermission.crowd_create, OWNER_ROLE);
+        _grantPermission(DaoPermission.crowd_join, OWNER_ROLE);
+        _grantPermission(DaoPermission.crowd_unlock, OWNER_ROLE);
+        _grantPermission(DaoPermission.crowd_refund, OWNER_ROLE);
+        _grantPermission(DaoPermission.crowd_stop, OWNER_ROLE);
+        _grantPermission(DaoPermission.crowd_setadmin, OWNER_ROLE);
+        _grantPermission(DaoPermission.crowd_canmanage, OWNER_ROLE);
+        _grantPermission(DaoPermission.exchange_create, OWNER_ROLE);
+        _grantPermission(DaoPermission.exchange_cancel, OWNER_ROLE);
+        _grantPermission(DaoPermission.exchange_renew, OWNER_ROLE);
+        _grantPermission(DaoPermission.exchange_accept, OWNER_ROLE);
+        _grantPermission(DaoPermission.exchange_refill, OWNER_ROLE);
+        _grantPermission(DaoPermission.exchange_setadmin, OWNER_ROLE);
+        _grantPermission(DaoPermission.exchange_canmanage, OWNER_ROLE);
+        //ADMIN, we use role safe version from now on to ensure the owner doesn't miss any permission :)
+        grantPermission(DaoPermission.token_all, ADMIN_ROLE);
+        grantPermission(DaoPermission.token_specific, ADMIN_ROLE);
+        grantPermission(DaoPermission.token_transfer, ADMIN_ROLE);
+        grantPermission(DaoPermission.token_create, ADMIN_ROLE);
+        grantPermission(DaoPermission.token_mint, ADMIN_ROLE);
+        grantPermission(DaoPermission.token_auth, ADMIN_ROLE);
+        grantPermission(DaoPermission.crowd_create, ADMIN_ROLE);
+        grantPermission(DaoPermission.crowd_join, ADMIN_ROLE);
+        grantPermission(DaoPermission.crowd_unlock, ADMIN_ROLE);
+        grantPermission(DaoPermission.crowd_refund, ADMIN_ROLE);
+        grantPermission(DaoPermission.crowd_stop, ADMIN_ROLE);
+        grantPermission(DaoPermission.crowd_setadmin, ADMIN_ROLE);
+        grantPermission(DaoPermission.crowd_canmanage, ADMIN_ROLE);
+        grantPermission(DaoPermission.exchange_create, ADMIN_ROLE);
+        grantPermission(DaoPermission.exchange_cancel, ADMIN_ROLE);
+        grantPermission(DaoPermission.exchange_renew, ADMIN_ROLE);
+        grantPermission(DaoPermission.exchange_accept, ADMIN_ROLE);
+        grantPermission(DaoPermission.exchange_refill, ADMIN_ROLE);
+        grantPermission(DaoPermission.exchange_setadmin, ADMIN_ROLE);
+        grantPermission(DaoPermission.exchange_canmanage, ADMIN_ROLE);
+        //SUPERVISOR
+        grantPermission(DaoPermission.token_specific, SUPERVISOR_ROLE);
+        grantPermission(DaoPermission.token_transfer, SUPERVISOR_ROLE);
+        grantPermission(DaoPermission.crowd_join, SUPERVISOR_ROLE);
+        grantPermission(DaoPermission.crowd_refund, SUPERVISOR_ROLE);
+        grantPermission(DaoPermission.crowd_canmanage, SUPERVISOR_ROLE);
+        grantPermission(DaoPermission.exchange_accept, SUPERVISOR_ROLE);
+        grantPermission(DaoPermission.exchange_refill, SUPERVISOR_ROLE);
+        grantPermission(DaoPermission.exchange_canmanage, SUPERVISOR_ROLE);
+        //USER must have no permissions
     }
 
     function isAdminOfRole(bytes32 isAdminRole, bytes32 ofRole) public view returns(bool){
@@ -252,15 +301,15 @@ contract DAO is AccessControl {
     }
 
     function setTokenAuth(string memory symbol, address _address)
-    public isMember(msg.sender) canManageToken(symbol) hasPermission(DaoPermission.token_auth) {
-        require(tokenAuthorization[symbol][_address] == false,"Address already authorized for this Token");
-        tokenAuthorization[symbol][_address] = true;
+    public isMember(msg.sender) hasPermission(DaoPermission.token_auth) canManageToken(symbol) {
+        require(tokenAuthorization[_address][symbol] == false,"Address already authorized for this Token");
+        tokenAuthorization[_address][symbol] = true;
     }
 
     function getTokenAuth(string memory tokenSymbol, address _address) public view returns (bool){
         return rolePermissions[getRole(_address)][DaoPermission.token_all] ||
         (rolePermissions[getRole(_address)][DaoPermission.token_specific] &&
-        tokenAuthorization[tokenSymbol][_address]);
+        tokenAuthorization[_address][tokenSymbol]);
     }
 
     function createCrowdsale(address _tokenToGive, address _tokenToAccept, uint256 _start, uint256 _end, uint256 _acceptRatio, uint256 _giveRatio, uint256 _maxCap, string memory _title, string memory _description, string memory _logoHash, string memory _TOSHash)
@@ -314,8 +363,6 @@ contract DAO is AccessControl {
         rolePermissions[getRole(_address)][DaoPermission.crowd_canmanage] &&
         crowdsaleManagement[_address][_crowdsale]
         );
-        //todo crowdsaleManagement[_address][_crowdsale] can help us to easily delete crowdsaleManagent[_address]
-        //todo rewrite tokenAuthorization usages to have tokenAuthorization[_address][_tokenSymbol]
     }
 
     function createExchange(address[] memory _coinsOffered, address[] memory _coinsRequired, uint256[] memory _amountsOffered, uint256[] memory _amountsRequired, uint256 _repeats, uint256 _expiration)
