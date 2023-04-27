@@ -32,7 +32,10 @@ contract DAO is AccessControl {
     mapping(address => bytes32) promotions;
     mapping(bytes32 => mapping(DaoPermission => bool)) rolePermissions;
     mapping(string => mapping(address => bool)) tokenAuthorization;
+    mapping(address => mapping(address => bool)) crowdsaleManagement;
+    mapping(address => mapping(address => bool)) exchangeManagement;
 
+    //todo shall we really assign canmanage role to owner/admin? for now "yes" since they wouldn't be able to grant it
     enum DaoPermission {
         //Whether it can manage all tokens
         token_all,
@@ -45,7 +48,35 @@ contract DAO is AccessControl {
         //Whether it can mint manageable tokens
         token_mint,
         //Whether it can authorize others to use a specific token
-        token_auth
+        token_auth,
+        //Whether it can create a crowdsale
+        crowd_create,
+        //Whether it can join a crowdsale
+        crowd_join,
+        //Whether it can unlock a crowdsale
+        crowd_unlock,
+        //Whether it can refund a crowdsale
+        crowd_refund,
+        //Whether it can stop a crowdsale
+        crowd_stop,
+        //Whether it can offer / revoke a DAO member (must have crowd_canmanage permission) management privileges regarding a specific crowdsale
+        crowd_setadmin,
+        //Whether it can be set as crowdsale manager by members with crowd_setadmin permissions
+        crowd_canmanage,
+        //Whether it can create an exchange
+        exchange_create,
+        //Whether it can cancel an exchange
+        exchange_cancel,
+        //Whether it can renew an exchange
+        exchange_renew,
+        //Whether it can accept an exchange
+        exchange_accept,
+        //Whether it can refill an exchange
+        exchange_refill,
+        //Whether it can offer / revoke a DAO member (that has exchange_canmanage permission) management privileges regarding a specific crowdsale
+        exchange_setadmin,
+        //Whether it can be set as exchange manager by members with exchange_setadmin permissions
+        exchange_canmanage
     }
 
     //Modifier that allows to execute the code only if the caller IS a member
@@ -232,9 +263,129 @@ contract DAO is AccessControl {
         tokenAuthorization[tokenSymbol][_address]);
     }
 
+    function createCrowdsale(address _tokenToGive, address _tokenToAccept, uint256 _start, uint256 _end, uint256 _acceptRatio, uint256 _giveRatio, uint256 _maxCap, string memory _title, string memory _description, string memory _logoHash, string memory _TOSHash)
+    public isMember(msg.sender) hasPermission(DaoPermission.crowd_create) {
+        //todo implement actual logic from commonshood
+    }
+
+    function unlockCrowdsale(address _crowdsaleID, address _tokenToGive, uint256 _amount)
+    public isMember(msg.sender) hasPermission(DaoPermission.crowd_unlock) {
+        //todo implement actual logic from commonshood
+    }
+
+    function stopCrowdsale(address _crowdsaleID)
+    public isMember(msg.sender) hasPermission(DaoPermission.crowd_stop) {
+        //todo implement actual logic from commonshood
+    }
+
+    function joinCrowdsale(address _crowdsaleID, uint256 _amount, string memory _symbol)
+    public isMember(msg.sender) hasPermission(DaoPermission.crowd_join) {
+        //todo implement actual logic from commonshood
+    }
+
+    function refundMeCrowdsale(address _crowdsaleID, uint256 _amount)
+    public isMember(msg.sender) hasPermission(DaoPermission.crowd_refund) {
+        //todo implement actual logic from commonshood
+    }
+
+    function makeAdminCrowdsale (address _crowdsaleID, address _address)
+    public isMember(msg.sender) isMember(_address) hasPermission(DaoPermission.crowd_setadmin) {
+        require(hasPermissions(DaoPermission.crowd_canmanage, _address), "target user has not enough permissions to be set as crowdsale admin");
+        //tood check for crowdsale existance
+        //todo implement actual logic from commonshood
+        //todo shall i check if it's already true or not?
+        crowdsaleManagement[_address][_crowdsaleID] = true;
+    }
+
+    function removeAdminCrowdsale (address _crowdsaleID, address _address)
+    public isMember(msg.sender) isMember(_address) hasPermission(DaoPermission.crowd_setadmin) {
+        require(hasPermissions(DaoPermission.crowd_canmanage, _address), "target user has not enough permissions to be set as crowdsale admin");
+        //todo check for crowdsale existance
+        //todo implement actual logic from commonshood
+        //todo shall i check if it's already false or not?
+        crowdsaleManagement[_address][_crowdsaleID] = false;
+    }
+
+    function getCrowdsaleManagement (address _crowdsale, address _address) public view returns(bool) {
+        //If the user has crowd_setadmin permissions, it can set admins for crowdsale, so it's inherently able to
+        //manage any crowdsale, otherwise, if it has crowd_canmanage set, we check if it's been granted management
+        //privileges for the specific crowdsale
+        return rolePermissions[getRole(_address)][DaoPermission.crowd_setadmin] || (
+        rolePermissions[getRole(_address)][DaoPermission.crowd_canmanage] &&
+        crowdsaleManagement[_address][_crowdsale]
+        );
+        //todo crowdsaleManagement[_address][_crowdsale] can help us to easily delete crowdsaleManagent[_address]
+        //todo rewrite tokenAuthorization usages to have tokenAuthorization[_address][_tokenSymbol]
+    }
+
+    function createExchange(address[] memory _coinsOffered, address[] memory _coinsRequired, uint256[] memory _amountsOffered, uint256[] memory _amountsRequired, uint256 _repeats, uint256 _expiration)
+    public isMember(msg.sender) hasPermission(DaoPermission.exchange_create) returns(address) {
+        //todo implement actual logic from commonshood
+        return address(0x0);
+    }
+
+    function cancelExchange(address _exchangeID)
+    public isMember(msg.sender) hasPermission(DaoPermission.exchange_cancel) {
+        //todo implement actual logic from commonshood
+    }
+
+    function renewExchange(address _exchangeID)
+    public isMember(msg.sender) hasPermission(DaoPermission.exchange_renew) {
+        //todo implement actual logic from commonshood
+    }
+
+    function acceptExchange(address _exchangeID, address[] memory _coinsRequired, uint256[] memory _amountsRequired, uint256 repeats )
+    public isMember(msg.sender) hasPermission(DaoPermission.exchange_accept) {
+        //todo implement actual logic from commonshood
+    }
+
+    function refillExchange(address _exchangeID, address[] memory _coinsOffered, uint256[] memory _amountsOffered, uint256 _repeats)
+    public isMember(msg.sender) hasPermission(DaoPermission.exchange_refill){
+        //todo implement actual logic from commonshood
+    }
+
+    function makeAdminExchange(address _exchangeID, address _address)
+    public isMember(msg.sender) isMember(_address) hasPermission(DaoPermission.exchange_setadmin){
+        require(hasPermissions(DaoPermission.exchange_canmanage, _address), "target user has not enough permissions to be set as exchange admin");
+        //todo implement actual logic from commonshood
+        //todo shall i check if it's already true or not?
+        exchangeManagement[_address][_exchangeID] = true;
+    }
+
+    function removeAdminExchange(address _exchangeID, address _address)
+    public isMember(msg.sender) isMember(_address) hasPermission(DaoPermission.exchange_setadmin){
+        require(hasPermissions(DaoPermission.exchange_canmanage, _address), "target user has not enough permissions to be set as exchange admin");
+        //todo implement actual logic from commonshood
+        //todo shall i check if it's already false or not?
+        exchangeManagement[_address][_exchangeID] = false;
+    }
+
+    function getExchangeManagement(address _exchangeID, address _address) public view returns(bool) {
+        return exchangeManagement[_address][_exchangeID];
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     //Returns if the users role has a specific permission
     function hasPermissions(DaoPermission perm) public view returns (bool) {
         return rolePermissions[getMyRole()][perm];
+    }
+
+    //Returns if the given user has a specific permission
+    function hasPermissions(DaoPermission perm, address user) public view returns (bool){
+        return rolePermissions[getRole(user)][perm];
     }
 
     //Returns the caller's role
