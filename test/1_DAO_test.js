@@ -293,22 +293,78 @@ contract("DAO", (accounts) => {
         })
     })
     describe('Role based micro-permissions', _ => {
-        it("Owner can transfer token", async () => {
-            const daoInstance = await DaoContract.deployed();
-            await daoInstance.transferToken("EUR", 250, user);
+        describe('Token Transfer', _ => {
+            it("Owner can transfer token", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.transferToken("EUR", 250, user);
+            })
+            it("Admin can transfer token", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.transferToken("EUR", 250, user, {from:admin});
+            })
+            it("Supervisor without token auth can't transfer token", async () => {
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.transferToken("EUR", 250, user, {from:supervisor});
+                }catch(_){
+                    return true;
+                }
+                throw new Error("Supervisor without token auth shouldn't be able to transfer token")
+            })
+            it("Admin authorizes Supervisor for Token", async () => {
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.setTokenAuth("EUR", supervisor, {from:admin});
+                }catch(_){
+                    throw new Error("Admin should be able to authorize a supervisor for a specific token");
+                }
+                assert.equal(
+                    await daoInstance.getTokenAuth("EUR", supervisor),
+                    true,
+                    "Supervisor shall be consider authorized for a token after being set as such by admin"
+                )
+            })
+            it("Authorized Supervisor can transfer token", async () => {
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.transferToken("EUR", 250, user, {from: supervisor});
+                }catch(_){
+                    throw new Error("Authorized Supervisor should be able to transfer a specific token for which it's authorized")
+                }
+            })
+            it("Admin reverts Supervisor authorization for Token", async () => {
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.removeTokenAuth("EUR", supervisor, {from:admin});
+                }catch(_){
+                    throw new Error("Admin should be able to authorize a supervisor for a specific token");
+                }
+                assert.equal(
+                    await daoInstance.getTokenAuth("EUR", supervisor),
+                    true,
+                    "Supervisor shall be consider authorized for a token after being set as such by admin"
+                )
+            })
         })
-        it("Admin can transfer token", async () => {
-            const daoInstance = await DaoContract.deployed();
-            await daoInstance.transferToken("EUR", 250, user, {from:admin});
-        })
-        it("Supervisor without token auth can't transfer token", async () => {
-            const daoInstance = await DaoContract.deployed();
-            try{
-                await daoInstance.transferToken("EUR", 250, user, {from:supervisor});
-            }catch(_){
+        describe('Token Create', _ => {
+            it("Owner can create a Token", async () => {
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.createToken("Euro", "EUR", 2, "", "", 0, "", {from:owner});
+                }catch(_){
+                    throw new Error("Owner should be able to create a token");
+                }
                 return true;
-            }
-            throw new Error("Supervisor without token auth shouldn't be able to transfer token")
+            });
+            it("Admin can create a Token", async () => {
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.createToken("Euro", "EUR", 2, "", "", 0, "", {from:admin});
+                }catch(_){
+                    throw new Error("Admin should be able to create a token");
+                }
+                return true;
+            });
         })
         it("Supervisor can't authorize himself", async () => {
             const daoInstance = await DaoContract.deployed();
@@ -318,27 +374,6 @@ contract("DAO", (accounts) => {
                 return true;
             }
             throw new Error("Supervisor shouldn't be able to authorize himself for a specific token")
-        })
-        it("Admin authorizes Supervisor for Token", async () => {
-            const daoInstance = await DaoContract.deployed();
-            try{
-                await daoInstance.setTokenAuth("EUR", supervisor, {from:admin});
-            }catch(_){
-                throw new Error("Admin should be able to authorize a supervisor for a specific token");
-            }
-            assert.equal(
-                await daoInstance.getTokenAuth("EUR", supervisor),
-                true,
-                "Supervisor shall be consider authorized for a token after being set as such by admin"
-            )
-        })
-        it("Authorized Supervisor can transfer token", async () => {
-            const daoInstance = await DaoContract.deployed();
-            try{
-                await daoInstance.transferToken("EUR", 250, user, {from: supervisor});
-            }catch(_){
-                throw new Error("Authorized Supervisor should be able to transfer a specific token for which it's authorized")
-            }
         })
     })
 });

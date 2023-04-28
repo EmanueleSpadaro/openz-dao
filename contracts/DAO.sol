@@ -133,6 +133,8 @@ contract DAO is AccessControl {
     event UserPromotionProposed(address indexed by, address user, bytes32 toRole);
     event UserPromoted(address indexed user, bytes32 toRole);
     event UserKicked(address indexed by, address user);
+    event UserTokenAuthorization(address indexed by, address user, string token);
+    event UserTokenAuthorizationRevoked(address indexed by, address user, string token);
 
     constructor(
 
@@ -304,6 +306,14 @@ contract DAO is AccessControl {
     public isMember(msg.sender) hasPermission(DaoPermission.token_auth) canManageToken(symbol) {
         require(tokenAuthorization[_address][symbol] == false,"Address already authorized for this Token");
         tokenAuthorization[_address][symbol] = true;
+        emit UserTokenAuthorization(msg.sender, _address, symbol);
+    }
+
+    function removeTokenAuth(string memory symbol, address _address)
+    public isMember(msg.sender) hasPermission(DaoPermission.token_auth) canManageToken(symbol) {
+        require(tokenAuthorization[_address][symbol] == true,"Address already not authorized for this Token");
+        delete tokenAuthorization[_address][symbol];
+        emit UserTokenAuthorizationRevoked(msg.sender, _address, symbol);
     }
 
     function getTokenAuth(string memory tokenSymbol, address _address) public view returns (bool){
