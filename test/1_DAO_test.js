@@ -373,7 +373,7 @@ contract("DAO", (accounts) => {
                 throw new Error("User shouldn't be able to create a token");
             });
         })
-        describe("Mint Token", _ => {
+        describe("Token Mint", _ => {
             it("Owner can mint token", async () => {
                 const daoInstance = await DaoContract.deployed();
                 await daoInstance.mintToken("EUR", 250, {from: owner});
@@ -442,7 +442,17 @@ contract("DAO", (accounts) => {
                 throw new Error("User shouldn't be able to be authorized for a specific token")
             })
             it("Owner reapplies token Authorization for Supervisor", async () => {
-
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.setTokenAuth("EUR", supervisor, {from:owner});
+                }catch(_){
+                    throw new Error("Owner should be able to authorize a supervisor for a specific token");
+                }
+                assert.equal(
+                    await daoInstance.getTokenAuth("EUR", supervisor),
+                    true,
+                    "Supervisor should be consider authorized for a token after being set as such by owner"
+                )
             })
         })
     })
