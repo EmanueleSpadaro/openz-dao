@@ -49,6 +49,8 @@ contract DAO is AccessControl {
         token_mint,
         //Whether it can authorize others to use a specific token
         token_auth,
+        //Whether it can be set as authorized to manage specific tokens
+        token_canmanage,
         //Whether it can create a crowdsale
         crowd_create,
         //Whether it can join a crowdsale
@@ -133,6 +135,8 @@ contract DAO is AccessControl {
     event UserPromotionProposed(address indexed by, address user, bytes32 toRole);
     event UserPromoted(address indexed user, bytes32 toRole);
     event UserKicked(address indexed by, address user);
+    event UserTokenAuthorization(address indexed by, address user, string token);
+    event UserTokenAuthorizationRevoked(address indexed by, address user, string token);
 
     constructor(
 
@@ -157,6 +161,7 @@ contract DAO is AccessControl {
         _grantPermission(DaoPermission.token_create, OWNER_ROLE);
         _grantPermission(DaoPermission.token_mint, OWNER_ROLE);
         _grantPermission(DaoPermission.token_auth, OWNER_ROLE);
+        _grantPermission(DaoPermission.token_canmanage, OWNER_ROLE);
         _grantPermission(DaoPermission.crowd_create, OWNER_ROLE);
         _grantPermission(DaoPermission.crowd_join, OWNER_ROLE);
         _grantPermission(DaoPermission.crowd_unlock, OWNER_ROLE);
@@ -178,6 +183,7 @@ contract DAO is AccessControl {
         grantPermission(DaoPermission.token_create, ADMIN_ROLE);
         grantPermission(DaoPermission.token_mint, ADMIN_ROLE);
         grantPermission(DaoPermission.token_auth, ADMIN_ROLE);
+        grantPermission(DaoPermission.token_canmanage, ADMIN_ROLE);
         grantPermission(DaoPermission.crowd_create, ADMIN_ROLE);
         grantPermission(DaoPermission.crowd_join, ADMIN_ROLE);
         grantPermission(DaoPermission.crowd_unlock, ADMIN_ROLE);
@@ -195,6 +201,7 @@ contract DAO is AccessControl {
         //SUPERVISOR
         grantPermission(DaoPermission.token_specific, SUPERVISOR_ROLE);
         grantPermission(DaoPermission.token_transfer, SUPERVISOR_ROLE);
+        grantPermission(DaoPermission.token_canmanage, SUPERVISOR_ROLE);
         grantPermission(DaoPermission.crowd_join, SUPERVISOR_ROLE);
         grantPermission(DaoPermission.crowd_refund, SUPERVISOR_ROLE);
         grantPermission(DaoPermission.crowd_canmanage, SUPERVISOR_ROLE);
@@ -301,9 +308,18 @@ contract DAO is AccessControl {
     }
 
     function setTokenAuth(string memory symbol, address _address)
-    public isMember(msg.sender) hasPermission(DaoPermission.token_auth) canManageToken(symbol) {
+    public isMember(_address) isMember(msg.sender) hasPermission(DaoPermission.token_auth) canManageToken(symbol) {
+        require(hasPermissions(DaoPermission.token_canmanage, _address), "Target user has no permissions to be authorized for tokens");
         require(tokenAuthorization[_address][symbol] == false,"Address already authorized for this Token");
         tokenAuthorization[_address][symbol] = true;
+        emit UserTokenAuthorization(msg.sender, _address, symbol);
+    }
+
+    function removeTokenAuth(string memory symbol, address _address)
+    public isMember(_address) isMember(msg.sender) hasPermission(DaoPermission.token_auth) canManageToken(symbol) {
+        require(tokenAuthorization[_address][symbol] == true,"Address already not authorized for this Token");
+        delete tokenAuthorization[_address][symbol];
+        emit UserTokenAuthorizationRevoked(msg.sender, _address, symbol);
     }
 
     function getTokenAuth(string memory tokenSymbol, address _address) public view returns (bool){
