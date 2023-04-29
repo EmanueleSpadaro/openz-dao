@@ -52,6 +52,25 @@ contract("DAO", (accounts) => {
             const daoInstance = await DaoContract.deployed();
             assert.equal(owner, await daoInstance.owner(), "first account should be dao owner");
         });
+        it("Owner sets the DAO as Invite-Only", async () => {
+            const daoInstance = await DaoContract.deployed();
+            await daoInstance.setInviteOnly(true);
+            assert.equal(await daoInstance.isInviteOnly(), true, "DAO should be Invite-Only after being set as such");
+        });
+        it("Future User can't join Invite-Only DAO", async () => {
+            const daoInstance = await DaoContract.deployed();
+            try{
+                await daoInstance.join({from: user});
+            }catch(_){
+                return true;
+            }
+            throw new Error("User shouldn't be able to join Invite-Only DAO without invitation"); 
+        });
+        it("Owner unsets the DAO as Invite-Only", async () => {
+            const daoInstance = await DaoContract.deployed();
+            await daoInstance.setInviteOnly(false);
+            assert.equal(await daoInstance.isInviteOnly(), false, "DAO shouldn't be Invite-Only after being unset as such");
+        })
         it("Owner can't rejoin the DAO since it's already in", async () => {
             const daoInstance = await DaoContract.deployed();
             try{

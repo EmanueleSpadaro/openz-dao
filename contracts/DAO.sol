@@ -37,6 +37,8 @@ contract DAO is AccessControl {
 
     //todo shall we really assign canmanage role to owner/admin? for now "yes" since they wouldn't be able to grant it
     enum DaoPermission {
+        //Whether it can alter the inviteOnly flag for the given DAO
+        invite_switch,
         //Whether it can manage all tokens
         token_all,
         //Whether it can manage only specific tokens
@@ -176,6 +178,7 @@ contract DAO is AccessControl {
         _grantPermission(DaoPermission.exchange_refill, OWNER_ROLE);
         _grantPermission(DaoPermission.exchange_setadmin, OWNER_ROLE);
         _grantPermission(DaoPermission.exchange_canmanage, OWNER_ROLE);
+        _grantPermission(DaoPermission.invite_switch, OWNER_ROLE);
         //ADMIN, we use role safe version from now on to ensure the owner doesn't miss any permission :)
         grantPermission(DaoPermission.token_all, ADMIN_ROLE);
         grantPermission(DaoPermission.token_specific, ADMIN_ROLE);
@@ -198,6 +201,7 @@ contract DAO is AccessControl {
         grantPermission(DaoPermission.exchange_refill, ADMIN_ROLE);
         grantPermission(DaoPermission.exchange_setadmin, ADMIN_ROLE);
         grantPermission(DaoPermission.exchange_canmanage, ADMIN_ROLE);
+        grantPermission(DaoPermission.invite_switch, ADMIN_ROLE);
         //SUPERVISOR
         grantPermission(DaoPermission.token_specific, SUPERVISOR_ROLE);
         grantPermission(DaoPermission.token_transfer, SUPERVISOR_ROLE);
@@ -232,6 +236,12 @@ contract DAO is AccessControl {
         delete invites[msg.sender];
         _grantRole(USER_ROLE, msg.sender);
         emit UserJoined(msg.sender, USER_ROLE);
+    }
+
+    //Alters the DAO Invite-Only flag
+    function setInviteOnly(bool newValue) public isMember(msg.sender) hasPermission(DaoPermission.invite_switch) {
+        require(isInviteOnly != newValue, "invite only already set as desired value");
+        isInviteOnly = newValue;
     }
     
     //Invites a user with the given role to join the DAO
