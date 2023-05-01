@@ -126,8 +126,6 @@ contract DAO is AccessControl {
 
     modifier canManageToken(string memory tokenSymbol) {
         require(getTokenAuth(tokenSymbol, msg.sender), "not authorized to manage token");
-        //require(hasPermissions(DaoPermission.token_all) || (hasPermissions(DaoPermission.token_specific) &&
-        //tokenAuthorization[tokenSymbol][msg.sender]), "not authorized to manage token");
         _;
     }
 
@@ -368,7 +366,7 @@ contract DAO is AccessControl {
         require(hasPermissions(DaoPermission.crowd_canmanage, _address), "target user has not enough permissions to be set as crowdsale admin");
         //tood check for crowdsale existance
         //todo implement actual logic from commonshood
-        //todo shall i check if it's already true or not?
+        require(crowdsaleManagement[_address][_crowdsaleID] == false, "target user already has permissions for the given crowdsale");
         crowdsaleManagement[_address][_crowdsaleID] = true;
     }
 
@@ -377,7 +375,7 @@ contract DAO is AccessControl {
         require(hasPermissions(DaoPermission.crowd_canmanage, _address), "target user has not enough permissions to be set as crowdsale admin");
         //todo check for crowdsale existance
         //todo implement actual logic from commonshood
-        //todo shall i check if it's already false or not?
+        require(crowdsaleManagement[_address][_crowdsaleID], "target user already has no permissions for the given crowdsale");
         crowdsaleManagement[_address][_crowdsaleID] = false;
     }
 
@@ -421,7 +419,7 @@ contract DAO is AccessControl {
     public isMember(msg.sender) isMember(_address) hasPermission(DaoPermission.exchange_setadmin){
         require(hasPermissions(DaoPermission.exchange_canmanage, _address), "target user has not enough permissions to be set as exchange admin");
         //todo implement actual logic from commonshood
-        //todo shall i check if it's already true or not?
+        require(exchangeManagement[_address][_exchangeID] == false, "target user already has permissions for the given exchange");
         exchangeManagement[_address][_exchangeID] = true;
     }
 
@@ -429,27 +427,13 @@ contract DAO is AccessControl {
     public isMember(msg.sender) isMember(_address) hasPermission(DaoPermission.exchange_setadmin){
         require(hasPermissions(DaoPermission.exchange_canmanage, _address), "target user has not enough permissions to be set as exchange admin");
         //todo implement actual logic from commonshood
-        //todo shall i check if it's already false or not?
+        require(exchangeManagement[_address][_exchangeID], "target user already has not permissions for the given exchange");
         exchangeManagement[_address][_exchangeID] = false;
     }
 
     function getExchangeManagement(address _exchangeID, address _address) public view returns(bool) {
         return exchangeManagement[_address][_exchangeID];
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     //Returns if the users role has a specific permission
     function hasPermissions(DaoPermission perm) public view returns (bool) {

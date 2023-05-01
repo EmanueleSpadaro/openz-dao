@@ -474,6 +474,392 @@ contract("DAO", (accounts) => {
                 )
             })
         })
+        describe("Crowdsale Creation", _ => {
+            it("Owner can create a Crowdsale", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.createCrowdsale(user, user, 0, 0, 0, 0, 0, "desc", "desc", "logo_hash", "tos_hash");
+            })
+            it("Admin can create a Crowdsale", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.createCrowdsale(user, user, 0, 0, 0, 0, 0, "desc", "desc", "logo_hash", "tos_hash", {from:admin});
+            })
+            it("Supervisor can't create a Crowdsale", async () => {
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.createCrowdsale(user, user, 0, 0, 0, 0, 0, "desc", "desc", "logo_hash", "tos_hash", {from:supervisor});
+                }catch(_){
+                    return true;
+                }
+                throw new Error("Supervisor shouldn't be able to create a crowdsale");
+            })
+            it("User can't create a Crowdsale", async () => {
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.createCrowdsale(user, user, 0, 0, 0, 0, 0, "desc", "desc", "logo_hash", "tos_hash", {from:user});
+                }catch(_){
+                    return true;
+                }
+                throw new Error("User shouldn't be able to create a crowdsale");
+            })
+        })
+        describe("Crowdsale Unlock", _ => {
+            it("Owner can unlock Crowdsale", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.unlockCrowdsale(user, user, 0);
+            })
+            it("Admin can unlock Crowdsale", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.unlockCrowdsale(user, user, 0, {from:admin});
+            })
+            it("Supervisor cannot unlock Crowdsale", async () => {
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.unlockCrowdsale(user, user, 0, {from:supervisor});
+                }catch(_){
+                    return true;
+                }
+                throw new Error("Supervisor shouldn't be able to unlock a Crowdsale");
+            })
+            it("User cannot unlock Crowdsale", async () => {
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.unlockCrowdsale(user, user, 0, {from:user});
+                }catch(_){
+                    return true;
+                }
+                throw new Error("User shouldn't be able to unlock a Crowdsale");
+            })
+        })
+        describe("Crowdsale Stop", _ => {
+            it("Owner can stop Crowdsale", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.stopCrowdsale(user);
+            })
+            it("Admin can stop Crowdsale", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.stopCrowdsale(user, {from:admin});
+            })
+            it("Supervisor cannot stop Crowdsale", async () => {
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.stopCrowdsale(user, {from:supervisor});
+                }catch(_){
+                    return true;
+                }
+                throw new Error("Supervisor shouldn't be able to stop a Crowdsale");
+            })
+            it("User cannot stop Crowdsale", async () => {
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.stopCrowdsale(user, {from:user});
+                }catch(_){
+                    return true;
+                }
+                throw new Error("User shouldn't be able to stop a Crowdsale");
+            })
+        })
+        describe("Crowdsale Join", _ => {
+            it("Owner can join Crowdsale", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.joinCrowdsale(user, 0, "EUR", {from:owner});
+            })
+            it("Admin can join Crowdsale", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.joinCrowdsale(user, 0, "EUR", {from:admin});
+            })
+            //todo we'll probably have to change this test when implementing commonshood logic
+            it("Supervisor can join Crowdsale", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.joinCrowdsale(user, 0, "EUR", {from:supervisor});
+                //try{
+                //    await daoInstance.joinCrowdsale(user, 0, "EUR", {from:supervisor});
+                //}catch(_){
+                //    return true;
+                //}
+                //throw new Error("Supervisor shouldn't be able to join a Crowdsale");
+            })
+            it("User cannot join Crowdsale", async () => {
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.joinCrowdsale(user, {from:user});
+                }catch(_){
+                    return true;
+                }
+                throw new Error("User shouldn't be able to join a Crowdsale");
+            })
+        })
+        describe("Crowdsale Refund", _ => {
+            it("Owner can refund Crowdsale", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.refundMeCrowdsale(user, 0, {from:owner});
+            })
+            it("Admin can refund Crowdsale", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.refundMeCrowdsale(user, 0, {from:admin});
+            })
+            //todo we'll probably have to change this test when implementing commonshood logic
+            it("Supervisor can refund Crowdsale", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.refundMeCrowdsale(user, 0, {from:supervisor});
+            })
+            it("User cannot refund Crowdsale", async () => {
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.refundMeCrowdsale(user, {from:user});
+                }catch(_){
+                    return true;
+                }
+                throw new Error("User shouldn't be able to refund a Crowdsale");
+            })
+        })
+        describe("Crowdsale Permissions Grant/Revoke", _ => {
+            const crowdsaleID = user;
+            it("Owner grants/revokes to Supervisor", async () => {
+                const daoInstance = await DaoContract.deployed();
+                assert.equal(await daoInstance.getCrowdsaleManagement(crowdsaleID, supervisor), false, "Supervisor shouldn't have permissions for given crowdsale before assignment");
+                await daoInstance.makeAdminCrowdsale(crowdsaleID, supervisor, {from:owner});
+                assert.equal(await daoInstance.getCrowdsaleManagement(crowdsaleID, supervisor), true, "Supervisor should have now permissions for given crowdsale");
+                await daoInstance.removeAdminCrowdsale(crowdsaleID, supervisor, {from:owner});
+                assert.equal(await daoInstance.getCrowdsaleManagement(crowdsaleID, supervisor), false, "Supervisor shouldn't have permissions for given crowdsale");
+            })
+            it("Admin grants/revokes to Supervisor", async () => {
+                const daoInstance = await DaoContract.deployed();
+                assert.equal(await daoInstance.getCrowdsaleManagement(crowdsaleID, supervisor), false, "Supervisor shouldn't have permissions for given crowdsale before assignment");
+                await daoInstance.makeAdminCrowdsale(crowdsaleID, supervisor, {from:admin});
+                assert.equal(await daoInstance.getCrowdsaleManagement(crowdsaleID, supervisor), true, "Supervisor should have now permissions for given crowdsale");
+                await daoInstance.removeAdminCrowdsale(crowdsaleID, supervisor, {from:admin});
+                assert.equal(await daoInstance.getCrowdsaleManagement(crowdsaleID, supervisor), false, "Supervisor shouldn't have permissions for given crowdsale");
+            })
+            it("Supervisor cannot grant/revoke", async () => {
+                const daoInstance = await DaoContract.deployed();
+                assert.equal(await daoInstance.getCrowdsaleManagement(crowdsaleID, supervisor2), false, "Supervisor shouldn't have permissions for given crowdsale before assignment");
+                try{
+                    await daoInstance.makeAdminCrowdsale(crowdsaleID, supervisor2, {from:supervisor});
+                }catch(_){
+                    assert.equal(await daoInstance.getCrowdsaleManagement(crowdsaleID, supervisor2), false, "Supervisor shouldn't have permissions for given crowdsale");
+                    return true;
+                }
+                throw new Error("Supervisor shouldn't be able to give crowdsale permissions to other users");
+            })
+            it("User cannot grant/revoke", async () => {
+                const daoInstance = await DaoContract.deployed();
+                assert.equal(await daoInstance.getCrowdsaleManagement(crowdsaleID, user), false, "User shouldn't have permissions for given crowdsale before assignment");
+                try{
+                    await daoInstance.makeAdminCrowdsale(crowdsaleID, user, {from:owner});
+                }catch(_){
+                    assert.equal(await daoInstance.getCrowdsaleManagement(crowdsaleID, user), false, "User shouldn't have permissions for given crowdsale");
+                    return true;
+                }
+                throw new Error("User shouldn't be able to give crowdsale permissions to other users");
+            })
+            it("User cannot receive crowdsale permissions", async () => {
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.makeAdminCrowdsale(crowdsaleID, user, {from:owner});
+                }catch(_){
+                    assert.equal(await daoInstance.getCrowdsaleManagement(crowdsaleID, user), false, "User shouldn't have permissions for given crowdsale");
+                    return true;
+                }
+                throw new Error("User shouldn't be able to receive crowdsale permissions");
+            })
+        })
+        describe("Exchange Create", _ => {
+            const coinsOffered = [];
+            const coinsRequired = [];
+            const amountsOffered = [];
+            const amountsRequired = [];
+            const repeats = 0;
+            const expiration = 0;
+            it("Owner can create a Exchange", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.createExchange(coinsOffered, coinsRequired, amountsOffered, amountsRequired, repeats, expiration, {from:owner});
+            })
+            it("Admin can create a Exchange", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.createExchange(coinsOffered, coinsRequired, amountsOffered, amountsRequired, repeats, expiration, {from:admin});
+            })
+            it("Supervisor cannot create a Exchange", async () => {
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.createExchange(coinsOffered, coinsRequired, amountsOffered, amountsRequired, repeats, expiration, {from:supervisor});
+                }catch(_){
+                    return true;
+                }
+                throw new Error("Supervisor shouldn't be able to create an exchange");
+            })
+            it("User cannot create a Exchange", async () => {
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.createExchange(coinsOffered, coinsRequired, amountsOffered, amountsRequired, repeats, expiration, {from:user});
+                }catch(_){
+                    return true;
+                }
+                throw new Error("User shouldn't be able to create an exchange");
+            })
+        })
+        describe("Exchange Cancel", _ => {
+            const exchangeID = user;
+            it("Owner can cancel a Exchange", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.cancelExchange(exchangeID, {from:owner});
+            })
+            it("Admin can cancel a Exchange", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.cancelExchange(exchangeID, {from:admin});
+            })
+            it("Supervisor cannot cancel a Exchange", async () => {
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.cancelExchange(exchangeID, {from:supervisor});
+                }catch(_){
+                    return true;
+                }
+                throw new Error("Supervisor shouldn't be able to cancel an exchange");
+            })
+            it("User cannot cancel a Exchange", async () => {
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.cancelExchange(exchangeID, {from:user});
+                }catch(_){
+                    return true;
+                }
+                throw new Error("User shouldn't be able to cancel an exchange");
+            })
+        })
+        describe("Exchange Renew", _ => {
+            const exchangeID = user;
+            it("Owner can renew a Exchange", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.renewExchange(exchangeID, {from:owner});
+            })
+            it("Admin can renew a Exchange", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.renewExchange(exchangeID, {from:admin});
+            })
+            it("Supervisor cannot renew a Exchange", async () => {
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.renewExchange(exchangeID, {from:supervisor});
+                }catch(_){
+                    return true;
+                }
+                throw new Error("Supervisor shouldn't be able to renew an exchange");
+            })
+            it("User cannot renew a Exchange", async () => {
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.renewExchange(exchangeID, {from:user});
+                }catch(_){
+                    return true;
+                }
+                throw new Error("User shouldn't be able to renew an exchange");
+            })
+        })
+        describe("Exchange Accept", _ => {
+            const exchangeID = user;
+            const coinsRequired = [];
+            const coinsAmounts = [];
+            const repeats = 0;
+            it("Owner can accept a Exchange", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.acceptExchange(exchangeID, coinsRequired, coinsAmounts, repeats, {from:owner});
+            })
+            it("Admin can accept a Exchange", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.acceptExchange(exchangeID, coinsRequired, coinsAmounts, repeats, {from:admin});
+            })
+            it("Supervisor cannot accept a Exchange", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.acceptExchange(exchangeID, coinsRequired, coinsAmounts, repeats, {from:supervisor});
+            })
+            it("User cannot accept a Exchange", async () => {
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.acceptExchange(exchangeID, coinsRequired, coinsAmounts, repeats, {from:user});
+                }catch(_){
+                    return true;
+                }
+                throw new Error("User shouldn't be able to accept an exchange");
+            })
+        })
+        describe("Exchange Refill", _ => {
+            const exchangeID = user;
+            const coinsOffered = [];
+            const coinsAmounts = [];
+            const repeats = 0;
+            it("Owner can accept a Exchange", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.refillExchange(exchangeID, coinsOffered, coinsAmounts, repeats, {from:owner});
+            })
+            it("Admin can accept a Exchange", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.refillExchange(exchangeID, coinsOffered, coinsAmounts, repeats, {from:admin});
+            })
+            it("Supervisor cannot accept a Exchange", async () => {
+                const daoInstance = await DaoContract.deployed();
+                await daoInstance.refillExchange(exchangeID, coinsOffered, coinsAmounts, repeats, {from:supervisor});
+            })
+            it("User cannot accept a Exchange", async () => {
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.refillExchange(exchangeID, coinsOffered, coinsAmounts, repeats, {from:user});
+                }catch(_){
+                    return true;
+                }
+                throw new Error("User shouldn't be able to refill an exchange");
+            })
+        })
+        describe("Exchange Permissions Grant/Revoke", _ => {
+            const exchangeID = user;
+            it("Owner grants/revokes to Supervisor", async () => {
+                const daoInstance = await DaoContract.deployed();
+                assert.equal(await daoInstance.getExchangeManagement(exchangeID, supervisor), false, "Supervisor shouldn't have permissions for given exchange before assignment");
+                await daoInstance.makeAdminExchange(exchangeID, supervisor, {from:owner});
+                assert.equal(await daoInstance.getExchangeManagement(exchangeID, supervisor), true, "Supervisor should have now permissions for given exchange");
+                await daoInstance.removeAdminExchange(exchangeID, supervisor, {from:owner});
+                assert.equal(await daoInstance.getExchangeManagement(exchangeID, supervisor), false, "Supervisor shouldn't have permissions for given exchange");
+            })
+            it("Admin grants/revokes to Supervisor", async () => {
+                const daoInstance = await DaoContract.deployed();
+                assert.equal(await daoInstance.getExchangeManagement(exchangeID, supervisor), false, "Supervisor shouldn't have permissions for given exchange before assignment");
+                await daoInstance.makeAdminExchange(exchangeID, supervisor, {from:admin});
+                assert.equal(await daoInstance.getExchangeManagement(exchangeID, supervisor), true, "Supervisor should have now permissions for given exchange");
+                await daoInstance.removeAdminExchange(exchangeID, supervisor, {from:admin});
+                assert.equal(await daoInstance.getExchangeManagement(exchangeID, supervisor), false, "Supervisor shouldn't have permissions for given exchange");
+            })
+            it("Supervisor cannot grant/revoke", async () => {
+                const daoInstance = await DaoContract.deployed();
+                assert.equal(await daoInstance.getExchangeManagement(exchangeID, supervisor2), false, "Supervisor shouldn't have permissions for given exchange before assignment");
+                try{
+                    await daoInstance.makeAdminExchange(exchangeID, supervisor2, {from:supervisor});
+                }catch(_){
+                    assert.equal(await daoInstance.getExchangeManagement(exchangeID, supervisor2), false, "Supervisor shouldn't have permissions for given exchange");
+                    return true;
+                }
+                throw new Error("Supervisor shouldn't be able to give exchange permissions to other users");
+            })
+            it("User cannot grant/revoke", async () => {
+                const daoInstance = await DaoContract.deployed();
+                assert.equal(await daoInstance.getExchangeManagement(exchangeID, user), false, "User shouldn't have permissions for given exchange before assignment");
+                try{
+                    await daoInstance.makeAdminExchange(exchangeID, user, {from:owner});
+                }catch(_){
+                    assert.equal(await daoInstance.getExchangeManagement(exchangeID, user), false, "User shouldn't have permissions for given exchange");
+                    return true;
+                }
+                throw new Error("User shouldn't be able to give exchange permissions to other users");
+            })
+            it("User cannot receive exchange permissions", async () => {
+                const daoInstance = await DaoContract.deployed();
+                try{
+                    await daoInstance.makeAdminExchange(exchangeID, user, {from:owner});
+                }catch(_){
+                    assert.equal(await daoInstance.getExchangeManagement(exchangeID, user), false, "User shouldn't have permissions for given exchange");
+                    return true;
+                }
+                throw new Error("User shouldn't be able to receive exchange permissions");
+            })
+        })
     })
 });
 
