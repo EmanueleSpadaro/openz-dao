@@ -1,9 +1,12 @@
 //SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.12;
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 
-contract DAO is AccessControl {
+contract DAO is AccessControlEnumerable {
+    //We use this util set to easily manage existing roles
+    using EnumerableSet for EnumerableSet.Bytes32Set;
     //External project requirement, it states "dao" to distinguish the DAO from standard user
     string public realm;
     //Address of the owner
@@ -27,6 +30,7 @@ contract DAO is AccessControl {
     bytes32 public constant SUPERVISOR_ROLE = keccak256("SUPERVISOR_ROLE"); 
     bytes32 public constant USER_ROLE = keccak256("USER_ROLE");
 
+    EnumerableSet.Bytes32Set roles;
     mapping(address => bytes32) usersRole;
     mapping(address => bytes32) invites;
     mapping(address => bytes32) promotions;
@@ -455,6 +459,36 @@ contract DAO is AccessControl {
         return usersRole[account];
     }
 
+    function getRoleMembers(bytes32 role) public view returns(address[] memory) {
+        uint256 memberCount = getRoleMemberCount(role);
+        address[] memory members = new address[](memberCount);
+        for (uint256 i = 0; i < memberCount; i++) {
+            members[i] = getRoleMember(role, i);
+        }
+        return members;
+    }
+
+    //O(n) complexity, it's not advised to use it outside of views
+    function getAllMembers() public view returns(address[] memory) {
+        uint256 totalMembers = 0;
+        for(uint256 i = 0; i < roles.length(); i++){
+            totalMembers += getRoleMemberCount(roles.at(i));
+        }
+        address[] memory members = new address[](totalMembers);
+        uint256 membersIndex = 0;
+        for(uint256 i = 0; i < roles.length(); i++){
+            bytes32 role = roles.at(i);
+            for(uint256 j = 0; j < getRoleMemberCount(role); j++){
+                members[membersIndex++] = getRoleMember(role, j);
+            }
+        }
+        return members;
+    }
+
+    function getAllRoles() public view returns(bytes32[] memory) {
+        return roles.values();
+    }
+
     //Gives a permission to a lower role
     function grantPermission(DaoPermission perm, bytes32 toRole)
     internal isMember(msg.sender) onlyAdmins(toRole) hasPermission(perm) {
@@ -478,17 +512,18 @@ contract DAO is AccessControl {
     }
 
     //Extended safe grantRole: allows only hierarchically superior ranks to execute it
-    function grantRole(bytes32 role, address account) public virtual override onlyAdmins(role) isAdminOf(account) {
+    function grantRole(bytes32 role, address account) public virtual override(AccessControl, IAccessControl) onlyAdmins(role) isAdminOf(account) {
         _grantRole(role, account);
     }
 
     //Extended safe grantRole: allows only hierarchically superior ranks to execute it
-    function revokeRole(bytes32 role, address account) public virtual override onlyAdmins(role) isAdminOf(account) {
+    function revokeRole(bytes32 role, address account) public virtual override(AccessControl, IAccessControl) onlyAdmins(role) isAdminOf(account) {
         _revokeRole(role, account);
     }
 
     //Writes the new role to the role mapping, and then calls the base method
     function _grantRole(bytes32 role, address account) internal override {
+        roles.add(role);
         usersRole[account] = role;
         super._grantRole(role, account);
     }

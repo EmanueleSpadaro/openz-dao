@@ -861,5 +861,77 @@ contract("DAO", (accounts) => {
             })
         })
     })
+    describe('Members and role enumerability', _ => {
+        it('Single Owner', async () => {
+            const daoInstance = await DaoContract.deployed();
+            assert.equal(
+                (await daoInstance.getRoleMemberCount(await daoInstance.getMyRole({from: owner}))).toNumber(),
+                1,
+                "There should be a single owner given the previous transactions"
+            )
+        })
+        it('Single Admin', async () => {
+            const daoInstance = await DaoContract.deployed();
+            assert.equal(
+                (await daoInstance.getRoleMemberCount(await daoInstance.getMyRole({from: admin}))).toNumber(),
+                1,
+                "There should be a single admin given the previous transactions"
+            )
+        })
+        it('Two supervisors', async () => {
+            const daoInstance = await DaoContract.deployed();
+            assert.equal(
+                (await daoInstance.getRoleMemberCount(await daoInstance.getMyRole({from: supervisor2}))).toNumber(),
+                2,
+                "There should be two supervisors given the previous transactions"
+            )
+        })
+        it('Single User', async () => {
+            const daoInstance = await DaoContract.deployed();
+            assert.equal(
+                (await daoInstance.getRoleMemberCount(await daoInstance.getMyRole({from: user}))).toNumber(),
+                1,
+                "There should be a single user given the previous transactions"
+            )
+        })
+        it('After user kick, zero users', async () => {
+            const daoInstance = await DaoContract.deployed();
+            await daoInstance.kickMember(user, {from: admin});
+            assert.equal(
+                (await daoInstance.getRoleMemberCount(await daoInstance.USER_ROLE())).toNumber(),
+                0,
+                "There should be a single user given the previous transactions"
+            )
+        })
+        it('After rejoin, one user again', async () => {
+            const daoInstance = await DaoContract.deployed();
+            await daoInstance.join({from: user});
+            assert.equal(
+                (await daoInstance.getRoleMemberCount(await daoInstance.USER_ROLE())).toNumber(),
+                1,
+                "There should be a single user given the previous transactions"
+            )
+        })
+        it('Getting all members', async () => {
+            const daoInstance = await DaoContract.deployed();
+            const expectedMembers = [owner, admin, supervisor, supervisor2, user].slice().sort();
+            const expectedRoles = [await daoInstance.OWNER_ROLE(), await daoInstance.ADMIN_ROLE(), await daoInstance.SUPERVISOR_ROLE(), await daoInstance.USER_ROLE()].slice().sort();
+            const receivedMembers = (await daoInstance.getAllMembers()).slice().sort();
+            const receivedRoles = (await daoInstance.getAllRoles()).slice().sort();
+            if(expectedMembers.length !== receivedMembers.length ||
+               expectedRoles.length !== receivedRoles.length){
+                return false;
+            }
+            for(let i = 0; i < expectedMembers.length; i++){
+                if(expectedMembers[i] !== receivedMembers[i])
+                    return false;
+            }
+            for(let i = 0; i < expectedRoles.length; i++){
+                if(expectedRoles[i] !== receivedRoles[i])
+                    return false;
+            }
+            return true;
+        })
+    })
 });
 
