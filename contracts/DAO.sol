@@ -325,13 +325,13 @@ contract DAO is AccessControlEnumerable {
     function kickMember(address toKick) public isMember(toKick) isAdminOf(toKick) {
         //We clear out possible promotions before kicking the member
         delete promotions[toKick];
+        //Revoke role inherently deletes the kicked member struct, deleting their management permissions
         _revokeRole(users[toKick].role, toKick);
         emit UserKicked(msg.sender, toKick);
     }
 
     function transferToken(string memory symbol, uint256 amount, address to)
     public isMember(msg.sender) hasPermission(DaoPermission.token_transfer) canManageToken(symbol){
-        //todo when user is kicked or permission changed between roles, reset the specific auths
         //todo implement actual logic from commonshood
     }
 
@@ -549,7 +549,6 @@ contract DAO is AccessControlEnumerable {
         //We iterate over each member of the role to demote them to User
         for(uint256 i = 0; i < getRoleMembers(toRemove).length; i++){
             address member = getRoleMember(toRemove, i);
-            //todo if they have token permissions & like that (if they have x_canmanage, we have to delete such permiss)
             modifyRank(member, USER_ROLE);
         }
         bytes32 upperRankOfRemovedOne = getRoleAdmin(toRemove);
@@ -601,7 +600,7 @@ contract DAO is AccessControlEnumerable {
         super._grantRole(role, account);
     }
 
-    //Deletes the users role mapping value, and then calls the base method
+    //Deletes the users role mapping value, and then calls the base method, of course the user loses the previous management privileges
     function _revokeRole(bytes32 role, address account) internal override {
         delete users[account];
         super._revokeRole(role, account);
