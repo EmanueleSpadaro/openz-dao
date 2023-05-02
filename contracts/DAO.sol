@@ -2,7 +2,9 @@
 pragma solidity ^0.8.12;
 
 import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+
+import "./DAOFactory.sol";
 
 contract DAO is AccessControlEnumerable {
     //We use this util set to easily manage existing roles
@@ -13,13 +15,15 @@ contract DAO is AccessControlEnumerable {
     string public realm;
     //Address of the owner
     address public owner;
+    //Address of the DAOFactory that generated this contract
+    DAOFactory public daoFactory;
 
     //DAO's name, its uniqueness shall be managed by a Factory contract
     string public name;
-    //External project requirement, it states the ID of a place inside a map. Each DAO has to be linked to a given place
+    //It states the ID of a place inside a map. Each DAO has to be linked to a given place
     string public firstlifePlaceID;
 
-    //External proejct requirement, DAO's description
+    //DAO's description
     string public description_cid;
     //Specifies whether you can join this DAO freely or under invitation
     bool public isInviteOnly = false;
@@ -164,13 +168,14 @@ contract DAO is AccessControlEnumerable {
     event UserTokenAuthorizationRevoked(address indexed by, address user, string token);
 
     constructor(
-
+        address _daoFactory
     ){
         realm = "dao";
         owner = msg.sender;
         name = "Test_DAO";
         firstlifePlaceID = "paoloBorsellinoFID";
         description_cid = "La best residenza da quittare asap";
+        daoFactory = DAOFactory(_daoFactory);
         isInviteOnly = false;
         _grantRole(OWNER_ROLE, msg.sender);
         //We setup the role hierarchy in terms of admin role:
