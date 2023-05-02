@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 contract DAO is AccessControlEnumerable {
     //We use this util set to easily manage existing roles
     using EnumerableSet for EnumerableSet.Bytes32Set;
+    using EnumerableSet for EnumerableSet.UintSet;
     //External project requirement, it states "dao" to distinguish the DAO from standard user
     string public realm;
     //Address of the owner
@@ -30,16 +31,20 @@ contract DAO is AccessControlEnumerable {
     bytes32 public constant SUPERVISOR_ROLE = keccak256("SUPERVISOR_ROLE"); 
     bytes32 public constant USER_ROLE = keccak256("USER_ROLE");
 
+    //Auxiliary struct to allow us to delete rolePermissions in case of role deletion
+    struct RolePermissionsStruct {
+        EnumerableSet.UintSet permissions;
+    }
+
     EnumerableSet.Bytes32Set roles;
     mapping(address => bytes32) usersRole;
     mapping(address => bytes32) invites;
     mapping(address => bytes32) promotions;
-    mapping(bytes32 => mapping(DaoPermission => bool)) rolePermissions;
+    mapping(bytes32 => RolePermissionsStruct) rolePermissions;
     mapping(address => mapping(string => bool)) tokenAuthorization;
     mapping(address => mapping(address => bool)) crowdsaleManagement;
     mapping(address => mapping(address => bool)) exchangeManagement;
 
-    //todo shall we really assign canmanage role to owner/admin? for now "yes" since they wouldn't be able to grant it
     enum DaoPermission {
         //Whether it can alter the inviteOnly flag for the given DAO
         invite_switch,
@@ -124,12 +129,23 @@ contract DAO is AccessControlEnumerable {
     }
 
     modifier hasPermission(DaoPermission permission) {
-        require(rolePermissions[usersRole[msg.sender]][permission], "not enough permissions");
+        require(rolePermissions[usersRole[msg.sender]].permissions.contains(uint256(permission)), "not enough permissions");
         _;
     }
 
     modifier canManageToken(string memory tokenSymbol) {
         require(getTokenAuth(tokenSymbol, msg.sender), "not authorized to manage token");
+        _;
+    }
+
+    modifier isLegitRole(bytes32 role) {
+        require(roles.contains(role), "non-existing role");
+        _;
+    }
+
+    modifier notDefaultRole(bytes32 role) {
+        require(role != OWNER_ROLE && role != ADMIN_ROLE && role != SUPERVISOR_ROLE && role != USER_ROLE,
+        "non-default DAO role expected");
         _;
     }
 
@@ -157,6 +173,11 @@ contract DAO is AccessControlEnumerable {
         _setRoleAdmin(ADMIN_ROLE, OWNER_ROLE);
         _setRoleAdmin(SUPERVISOR_ROLE, ADMIN_ROLE);
         _setRoleAdmin(USER_ROLE, SUPERVISOR_ROLE);
+        //We add the roles to our set (this shall be the only case where we call roles.add instead of addRole)
+        roles.add(OWNER_ROLE);
+        roles.add(ADMIN_ROLE);
+        roles.add(SUPERVISOR_ROLE);
+        roles.add(USER_ROLE);
         //We setup the role permissions
         //OWNER
         _grantPermission(DaoPermission.token_all, OWNER_ROLE);
@@ -335,8 +356,8 @@ contract DAO is AccessControlEnumerable {
     }
 
     function getTokenAuth(string memory tokenSymbol, address _address) public view returns (bool){
-        return rolePermissions[getRole(_address)][DaoPermission.token_all] ||
-        (rolePermissions[getRole(_address)][DaoPermission.token_specific] &&
+        return rolePermissions[getRole(_address)].permissions.contains(uint256(DaoPermission.token_all)) ||
+        (rolePermissions[getRole(_address)].permissions.contains(uint256(DaoPermission.token_specific)) &&
         tokenAuthorization[_address][tokenSymbol]);
     }
 
@@ -387,8 +408,8 @@ contract DAO is AccessControlEnumerable {
         //If the user has crowd_setadmin permissions, it can set admins for crowdsale, so it's inherently able to
         //manage any crowdsale, otherwise, if it has crowd_canmanage set, we check if it's been granted management
         //privileges for the specific crowdsale
-        return rolePermissions[getRole(_address)][DaoPermission.crowd_setadmin] || (
-        rolePermissions[getRole(_address)][DaoPermission.crowd_canmanage] &&
+        return rolePermissions[getRole(_address)].permissions.contains(uint256(DaoPermission.crowd_setadmin)) || (
+        rolePermissions[getRole(_address)].permissions.contains(uint256(DaoPermission.crowd_canmanage)) &&
         crowdsaleManagement[_address][_crowdsale]
         );
     }
@@ -441,12 +462,12 @@ contract DAO is AccessControlEnumerable {
 
     //Returns if the users role has a specific permission
     function hasPermissions(DaoPermission perm) public view returns (bool) {
-        return rolePermissions[getMyRole()][perm];
+        return rolePermissions[getMyRole()].permissions.contains(uint256(perm));
     }
 
     //Returns if the given user has a specific permission
     function hasPermissions(DaoPermission perm, address user) public view returns (bool){
-        return rolePermissions[getRole(user)][perm];
+        return rolePermissions[getRole(user)].permissions.contains(uint256(perm));
     }
 
     //Returns the caller's role
@@ -489,35 +510,68 @@ contract DAO is AccessControlEnumerable {
         return roles.values();
     }
 
+    function addRole(bytes32 newRole, bytes32 adminRole) public onlyRole(OWNER_ROLE) {
+        require(!roles.contains(newRole), "already existing role");
+        require(adminRole != USER_ROLE, "user role shall not have ranks below");
+        bytes32 role = USER_ROLE;
+        while(getRoleAdmin(role) != adminRole) {
+            role = getRoleAdmin(role);
+        }
+        _setRoleAdmin(role, newRole);
+        _setRoleAdmin(newRole, adminRole);
+        roles.add(newRole);
+    }
+
+    function removeRole(bytes32 toRemove) public onlyRole(OWNER_ROLE) isLegitRole(toRemove) notDefaultRole(toRemove){
+        //We remove the role from the EnumerableSet
+        roles.remove(toRemove);
+        //We remove the role permissions from storage
+        delete rolePermissions[toRemove];
+        //We iterate over each member of the role to demote them to User
+        for(uint256 i = 0; i < getRoleMembers(toRemove).length; i++){
+            address member = getRoleMember(toRemove, i);
+            //todo if they have token permissions & like that (if they have x_canmanage, we have to delete such permiss)
+            modifyRank(member, USER_ROLE);
+        }
+        bytes32 upperRankOfRemovedOne = getRoleAdmin(toRemove);
+        //We rebuild the hierarchy, we need to find the role right below the removed one
+        bytes32 role = USER_ROLE;
+        while(getRoleAdmin(role) != toRemove) {
+            //We got up until we have the removed one as admin
+            role = getRoleAdmin(role);
+        }
+        _setRoleAdmin(role, upperRankOfRemovedOne);
+    }
+
     //Gives a permission to a lower role
-    function grantPermission(DaoPermission perm, bytes32 toRole)
-    internal isMember(msg.sender) onlyAdmins(toRole) hasPermission(perm) {
+    function grantPermission(DaoPermission perm, bytes32 toRole) onlyRole(OWNER_ROLE)
+    internal isMember(msg.sender) onlyAdmins(toRole) hasPermission(perm) isLegitRole(toRole) {
         _grantPermission(perm, toRole);
     }
 
     //Revokes a permission to a lower role
-    function revokePermission(DaoPermission perm, bytes32 toRole)
-    internal isMember(msg.sender) onlyAdmins(toRole) hasPermission(perm) {
+    function revokePermission(DaoPermission perm, bytes32 toRole) onlyRole(OWNER_ROLE)
+    internal isMember(msg.sender) onlyAdmins(toRole) hasPermission(perm) isLegitRole(toRole) {
         _revokePermission(perm, toRole);
     }
 
     //UNSAFELY Gives permissions to a role without checks
     function _grantPermission(DaoPermission perm, bytes32 toRole) internal {
-        rolePermissions[toRole][perm] = true;
+        rolePermissions[toRole].permissions.add(uint256(perm));
     }
 
     //UNSAFELY Revokes permissions to a role without checks
     function _revokePermission(DaoPermission perm, bytes32 toRole) internal {
-        rolePermissions[toRole][perm] = false;
+        rolePermissions[toRole].permissions.remove(uint256(perm));
     }
 
-    //Extended safe grantRole: allows only hierarchically superior ranks to execute it
-    function grantRole(bytes32 role, address account) public virtual override(AccessControl, IAccessControl) onlyAdmins(role) isAdminOf(account) {
+    //Extended safe grantRole: if the role exists, it allows only hierarchically superior ranks to execute it
+    function grantRole(bytes32 role, address account) public virtual override(AccessControl, IAccessControl) onlyAdmins(role) isAdminOf(account) isLegitRole(role) {
         _grantRole(role, account);
     }
 
-    //Extended safe grantRole: allows only hierarchically superior ranks to execute it
-    function revokeRole(bytes32 role, address account) public virtual override(AccessControl, IAccessControl) onlyAdmins(role) isAdminOf(account) {
+    //Extended safe grantRole: if the role exists, it allows only hierarchically superior ranks to execute it
+    function revokeRole(bytes32 role, address account) public virtual override(AccessControl, IAccessControl) onlyAdmins(role) isAdminOf(account) isLegitRole(role) {
         _revokeRole(role, account);
     }
 
