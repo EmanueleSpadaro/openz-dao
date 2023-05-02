@@ -933,5 +933,93 @@ contract("DAO", (accounts) => {
             return true;
         })
     })
+    describe('Dynamic roles', _ => {
+        const moderatorRole = web3.utils.keccak256("MODERATOR_ROLE");
+        it("Owner can add role (MODERATOR_ROLE) between Supervisor && Admin", async () => {
+            const daoInstance = await DaoContract.deployed();
+            await daoInstance.addRole(moderatorRole, await daoInstance.ADMIN_ROLE());
+            assert.equal(await daoInstance.getRoleAdmin(await daoInstance.SUPERVISOR_ROLE()), moderatorRole,
+                "Supervisor should have Moderator role as admin now");
+        });
+        it("Admin can promote User to new Role", async () => {
+            const daoInstance = await DaoContract.deployed();
+            await daoInstance.modifyRank(user, moderatorRole, {from: admin});
+            await daoInstance.acceptPromotion({from: user});
+            assert.equal(await daoInstance.hasRole(moderatorRole, user), true, "User should have the new Moderator Role");
+        })
+        it("Hierarchy is consistent (User < Supervisor < Moderator < Admin < Owner)", async () => {
+            const daoInstance = await DaoContract.deployed();
+            const expectedHierarchy = [await daoInstance.USER_ROLE(), await daoInstance.SUPERVISOR_ROLE(),
+            moderatorRole, await daoInstance.ADMIN_ROLE(), await daoInstance.OWNER_ROLE()];
+            const obtainedHierarchy = await daoInstance.getRoleHierarchy();
+            if(expectedHierarchy.length !== obtainedHierarchy.length)
+                return false;
+            for(let i = 0; i < expectedHierarchy.length; i++){
+                if(expectedHierarchy[i] !== obtainedHierarchy[i])
+                    return false;
+            }
+            return true;
+        })
+        it("Admin cannot remove new role", async () => {
+            const daoInstance = await DaoContract.deployed();
+            try {
+                await daoInstance.removeRole(moderatorRole, {from: admin});
+            }catch(_){
+                return true;
+            }
+            throw new Error("Admin shouldn't be able to remove a role");
+        })
+        it("Owner can remove new role", async () => {
+            const daoInstance = await DaoContract.deployed();
+            await daoInstance.removeRole(moderatorRole);
+        })
+        it("User that was Moderator gets deranked to User", async () => {
+            const daoInstance = await DaoContract.deployed();
+            assert.equal(
+                await daoInstance.hasRole(await daoInstance.USER_ROLE(), user), true,
+                "User should have USER_ROLE after the new role is deleted");
+        })
+        it("Hierarchy gets back to default one (User < Supervisor < Admin < Owner)", async () => {
+            const daoInstance = await DaoContract.deployed();
+            const expectedHierarchy = [await daoInstance.USER_ROLE(), await daoInstance.SUPERVISOR_ROLE(),
+                 await daoInstance.ADMIN_ROLE(), await daoInstance.OWNER_ROLE()];
+            const obtainedHierarchy = await daoInstance.getRoleHierarchy();
+            if(expectedHierarchy.length !== obtainedHierarchy.length)
+                return false;
+            for(let i = 0; i < expectedHierarchy.length; i++){
+                if(expectedHierarchy[i] !== obtainedHierarchy[i])
+                    return false;
+            }
+            return true;
+        })
+        it("Cannot delete default roles", async () => {
+            const daoInstance = await DaoContract.deployed();
+            let error = false;
+            try{
+                await daoInstance.removeRole(await daoInstance.USER_ROLE());
+                error = true;
+            }catch(_){ }
+            if(error)
+                throw new Error("It shouldn't be possible to remove a default role");
+            try{
+                await daoInstance.removeRole(await daoInstance.SUPERVISOR_ROLE());
+                error = true;
+            }catch(_){ }
+            if(error)
+                throw new Error("It shouldn't be possible to remove a default role");
+            try{
+                await daoInstance.removeRole(await daoInstance.ADMIN_ROLE());
+                error = true;
+            }catch(_){ }
+            if(error)
+                throw new Error("It shouldn't be possible to remove a default role");
+            try{
+                await daoInstance.removeRole(await daoInstance.OWNER_ROLE());
+                error = true;
+            }catch(_){ }
+            if(error)
+                throw new Error("It shouldn't be possible to remove a default role");
+        })
+    })
 });
 

@@ -506,13 +506,27 @@ contract DAO is AccessControlEnumerable {
         return members;
     }
 
+    //Returns all the roles without order
     function getAllRoles() public view returns(bytes32[] memory) {
         return roles.values();
     }
 
-    function addRole(bytes32 newRole, bytes32 adminRole) public onlyRole(OWNER_ROLE) {
+    //Returns all the roles in an ordered manner (from lowest to highest)
+    function getRoleHierarchy() public view returns(bytes32[] memory) {
+        bytes32[] memory rolesArr = new bytes32[](roles.length());
+        bytes32 role = USER_ROLE;
+        uint i = 0;
+        while(role != DEFAULT_ADMIN_ROLE) {
+            rolesArr[i++] = role;
+            role = getRoleAdmin(role);
+        }
+        return rolesArr;
+    }
+
+    function addRole(bytes32 newRole, bytes32 adminRole) public onlyRole(OWNER_ROLE) isLegitRole(adminRole) {
         require(!roles.contains(newRole), "already existing role");
         require(adminRole != USER_ROLE, "user role shall not have ranks below");
+        require(newRole != DEFAULT_ADMIN_ROLE, "cannot add DEFAULT_ADMIN_ROLE to role hierarchy");
         bytes32 role = USER_ROLE;
         while(getRoleAdmin(role) != adminRole) {
             role = getRoleAdmin(role);
