@@ -8,6 +8,7 @@ contract DAO is AccessControlEnumerable {
     //We use this util set to easily manage existing roles
     using EnumerableSet for EnumerableSet.Bytes32Set;
     using EnumerableSet for EnumerableSet.UintSet;
+    using EnumerableSet for EnumerableSet.AddressSet;
     //External project requirement, it states "dao" to distinguish the DAO from standard user
     string public realm;
     //Address of the owner
@@ -36,14 +37,18 @@ contract DAO is AccessControlEnumerable {
         EnumerableSet.UintSet permissions;
     }
 
+    struct UserStruct {
+        bytes32 role;
+        EnumerableSet.Bytes32Set tokenManagement;
+        EnumerableSet.AddressSet crowdsaleManagement;
+        EnumerableSet.AddressSet exchangeManagement;
+    }
+
     EnumerableSet.Bytes32Set roles;
-    mapping(address => bytes32) usersRole;
+    mapping(address => UserStruct) users;
     mapping(address => bytes32) invites;
     mapping(address => bytes32) promotions;
     mapping(bytes32 => RolePermissionsStruct) rolePermissions;
-    mapping(address => mapping(string => bool)) tokenAuthorization;
-    mapping(address => mapping(address => bool)) crowdsaleManagement;
-    mapping(address => mapping(address => bool)) exchangeManagement;
 
     enum DaoPermission {
         //Whether it can alter the inviteOnly flag for the given DAO
@@ -94,13 +99,13 @@ contract DAO is AccessControlEnumerable {
 
     //Modifier that allows to execute the code only if the caller IS a member
     modifier isMember(address addr) {
-        require(usersRole[addr] != 0x00, "you're required to be a member");
+        require(users[addr].role != bytes32(0), "you're required to be a member");
         _;
     }
 
     //Modifier that allows to execute the code only if the caller IS NOT a member
     modifier isNotMember(address addr) {
-        require(usersRole[addr] == 0x00, "you're required to not be a member");
+        require(users[addr].role == bytes32(0), "you're required to not be a member");
         _;
     }
 
@@ -118,18 +123,18 @@ contract DAO is AccessControlEnumerable {
 
     //Modifier that allows to execute the code only if the caller is hierarchically superior in terms of rank
     modifier isAdminOf(address ofAddress) {
-        require(isAdminOfRole(msg.sender, usersRole[ofAddress]), "you're required to be of higher rank");
+        require(isAdminOfRole(msg.sender, users[ofAddress].role), "you're required to be of higher rank");
         _;
     }
 
-    //Modifier that extends the behaviour achievable with onlyRole(getRoleAdmin(role)) to hierarchically superior ranks 
+    //Modifier that extends the behaviour achievable with onlyRole(getRoleAdmin(role)) to hierarchically superior ranks
     modifier onlyAdmins(bytes32 role) {
         require(isAdminOfRole(msg.sender, role), "only higher ranks of the given role are allowed");
         _;
     }
 
     modifier hasPermission(DaoPermission permission) {
-        require(rolePermissions[usersRole[msg.sender]].permissions.contains(uint256(permission)), "not enough permissions");
+        require(rolePermissions[users[msg.sender].role].permissions.contains(uint256(permission)), "not enough permissions");
         _;
     }
 
@@ -250,7 +255,7 @@ contract DAO is AccessControlEnumerable {
     }
 
     function isAdminOfRole(address isAdmin, bytes32 ofRole) public view returns(bool){
-        return isAdminOfRole(usersRole[isAdmin], ofRole);
+        return isAdminOfRole(users[isAdmin].role, ofRole);
     }
 
     //Joins the DAO
@@ -266,7 +271,7 @@ contract DAO is AccessControlEnumerable {
         require(isInviteOnly != newValue, "invite only already set as desired value");
         isInviteOnly = newValue;
     }
-    
+
     //Invites a user with the given role to join the DAO
     function invite(address toInvite, bytes32 offeredRole) public isMember(msg.sender) isNotMember(toInvite) onlyAdmins(offeredRole) {
         invites[toInvite] = offeredRole;
@@ -279,7 +284,7 @@ contract DAO is AccessControlEnumerable {
         _grantRole(invites[msg.sender], msg.sender);
         //We delete the invite since it's been accepted
         invites[msg.sender] = 0;
-        emit UserJoined(msg.sender, usersRole[msg.sender]);
+        emit UserJoined(msg.sender, users[msg.sender].role);
     }
 
     //Declines an invite to the DAO
@@ -290,7 +295,7 @@ contract DAO is AccessControlEnumerable {
 
     //Offers a promotion if the new role is higher than the current one, otherwise it deranks instantly, if we have enough permissions
     function modifyRank(address toModify, bytes32 newRole) public isMember(toModify) isAdminOf(toModify) onlyAdmins(newRole) {
-        bool isPromotion = isAdminOfRole(newRole, usersRole[toModify]);
+        bool isPromotion = isAdminOfRole(newRole, users[toModify].role);
         //If there's a pending promotion, we delete it whether it's a promotion or not
         delete promotions[toModify];
         //If it's a promotion, there is a 2Phase (offer && accept/refuse)
@@ -300,16 +305,16 @@ contract DAO is AccessControlEnumerable {
             return;
         }
         //If it's not a promotion, we just revoke the role and emit the event
-        _revokeRole(usersRole[toModify], toModify);
+        _revokeRole(users[toModify].role, toModify);
         _grantRole(newRole, toModify);
         emit UserDeranked(msg.sender, toModify, newRole);
     }
 
     function acceptPromotion() public isMember(msg.sender) hasPromotion {
-        _revokeRole(usersRole[msg.sender], msg.sender);
+        _revokeRole(users[msg.sender].role, msg.sender);
         _grantRole(promotions[msg.sender], msg.sender);
         delete promotions[msg.sender];
-        emit UserPromoted(msg.sender, usersRole[msg.sender]);
+        emit UserPromoted(msg.sender, users[msg.sender].role);
     }
 
     function refusePromotion() public isMember(msg.sender) hasPromotion {
@@ -320,7 +325,7 @@ contract DAO is AccessControlEnumerable {
     function kickMember(address toKick) public isMember(toKick) isAdminOf(toKick) {
         //We clear out possible promotions before kicking the member
         delete promotions[toKick];
-        _revokeRole(usersRole[toKick], toKick);
+        _revokeRole(users[toKick].role, toKick);
         emit UserKicked(msg.sender, toKick);
     }
 
@@ -343,22 +348,22 @@ contract DAO is AccessControlEnumerable {
     function setTokenAuth(string memory symbol, address _address)
     public isMember(_address) isMember(msg.sender) hasPermission(DaoPermission.token_auth) canManageToken(symbol) {
         require(hasPermissions(DaoPermission.token_canmanage, _address), "Target user has no permissions to be authorized for tokens");
-        require(tokenAuthorization[_address][symbol] == false,"Address already authorized for this Token");
-        tokenAuthorization[_address][symbol] = true;
+        require(!users[_address].tokenManagement.contains(keccak256(abi.encodePacked(symbol))),"Address already authorized for this Token");
+        users[_address].tokenManagement.add(keccak256(abi.encodePacked(symbol)));
         emit UserTokenAuthorization(msg.sender, _address, symbol);
     }
 
     function removeTokenAuth(string memory symbol, address _address)
     public isMember(_address) isMember(msg.sender) hasPermission(DaoPermission.token_auth) canManageToken(symbol) {
-        require(tokenAuthorization[_address][symbol] == true,"Address already not authorized for this Token");
-        delete tokenAuthorization[_address][symbol];
+        require(users[_address].tokenManagement.contains(keccak256(abi.encodePacked(symbol))),"Address already not authorized for this Token");
+        users[_address].tokenManagement.remove(keccak256(abi.encodePacked(symbol)));
         emit UserTokenAuthorizationRevoked(msg.sender, _address, symbol);
     }
 
     function getTokenAuth(string memory tokenSymbol, address _address) public view returns (bool){
         return rolePermissions[getRole(_address)].permissions.contains(uint256(DaoPermission.token_all)) ||
         (rolePermissions[getRole(_address)].permissions.contains(uint256(DaoPermission.token_specific)) &&
-        tokenAuthorization[_address][tokenSymbol]);
+        users[_address].tokenManagement.contains(keccak256(abi.encodePacked(tokenSymbol))));
     }
 
     function createCrowdsale(address _tokenToGive, address _tokenToAccept, uint256 _start, uint256 _end, uint256 _acceptRatio, uint256 _giveRatio, uint256 _maxCap, string memory _title, string memory _description, string memory _logoHash, string memory _TOSHash)
@@ -391,8 +396,8 @@ contract DAO is AccessControlEnumerable {
         require(hasPermissions(DaoPermission.crowd_canmanage, _address), "target user has not enough permissions to be set as crowdsale admin");
         //tood check for crowdsale existance
         //todo implement actual logic from commonshood
-        require(crowdsaleManagement[_address][_crowdsaleID] == false, "target user already has permissions for the given crowdsale");
-        crowdsaleManagement[_address][_crowdsaleID] = true;
+        require(!users[_address].crowdsaleManagement.contains(_crowdsaleID), "target user already has permissions for the given crowdsale");
+        users[_address].crowdsaleManagement.add(_crowdsaleID);
     }
 
     function removeAdminCrowdsale (address _crowdsaleID, address _address)
@@ -400,8 +405,8 @@ contract DAO is AccessControlEnumerable {
         require(hasPermissions(DaoPermission.crowd_canmanage, _address), "target user has not enough permissions to be set as crowdsale admin");
         //todo check for crowdsale existance
         //todo implement actual logic from commonshood
-        require(crowdsaleManagement[_address][_crowdsaleID], "target user already has no permissions for the given crowdsale");
-        crowdsaleManagement[_address][_crowdsaleID] = false;
+        require(users[_address].crowdsaleManagement.contains(_crowdsaleID), "target user already has no permissions for the given crowdsale");
+        users[_address].crowdsaleManagement.remove(_crowdsaleID);
     }
 
     function getCrowdsaleManagement (address _crowdsale, address _address) public view returns(bool) {
@@ -410,7 +415,7 @@ contract DAO is AccessControlEnumerable {
         //privileges for the specific crowdsale
         return rolePermissions[getRole(_address)].permissions.contains(uint256(DaoPermission.crowd_setadmin)) || (
         rolePermissions[getRole(_address)].permissions.contains(uint256(DaoPermission.crowd_canmanage)) &&
-        crowdsaleManagement[_address][_crowdsale]
+        users[_address].crowdsaleManagement.contains(_crowdsale)
         );
     }
 
@@ -444,20 +449,20 @@ contract DAO is AccessControlEnumerable {
     public isMember(msg.sender) isMember(_address) hasPermission(DaoPermission.exchange_setadmin){
         require(hasPermissions(DaoPermission.exchange_canmanage, _address), "target user has not enough permissions to be set as exchange admin");
         //todo implement actual logic from commonshood
-        require(exchangeManagement[_address][_exchangeID] == false, "target user already has permissions for the given exchange");
-        exchangeManagement[_address][_exchangeID] = true;
+        require(!users[_address].exchangeManagement.contains(_exchangeID), "target user already has permissions for the given exchange");
+        users[_address].exchangeManagement.add(_exchangeID);
     }
 
     function removeAdminExchange(address _exchangeID, address _address)
     public isMember(msg.sender) isMember(_address) hasPermission(DaoPermission.exchange_setadmin){
         require(hasPermissions(DaoPermission.exchange_canmanage, _address), "target user has not enough permissions to be set as exchange admin");
         //todo implement actual logic from commonshood
-        require(exchangeManagement[_address][_exchangeID], "target user already has not permissions for the given exchange");
-        exchangeManagement[_address][_exchangeID] = false;
+        require(users[_address].exchangeManagement.contains(_exchangeID), "target user already has not permissions for the given exchange");
+        users[_address].exchangeManagement.remove(_exchangeID);
     }
 
     function getExchangeManagement(address _exchangeID, address _address) public view returns(bool) {
-        return exchangeManagement[_address][_exchangeID];
+        return users[_address].exchangeManagement.contains(_exchangeID);
     }
 
     //Returns if the users role has a specific permission
@@ -472,12 +477,12 @@ contract DAO is AccessControlEnumerable {
 
     //Returns the caller's role
     function getMyRole() public view returns(bytes32){
-        return usersRole[msg.sender];
+        return users[msg.sender].role;
     }
 
     //Returns the provided address' role
     function getRole(address account) public view returns(bytes32){
-        return usersRole[account];
+        return users[account].role;
     }
 
     function getRoleMembers(bytes32 role) public view returns(address[] memory) {
@@ -592,13 +597,13 @@ contract DAO is AccessControlEnumerable {
     //Writes the new role to the role mapping, and then calls the base method
     function _grantRole(bytes32 role, address account) internal override {
         roles.add(role);
-        usersRole[account] = role;
+        users[account].role = role;
         super._grantRole(role, account);
     }
 
     //Deletes the users role mapping value, and then calls the base method
     function _revokeRole(bytes32 role, address account) internal override {
-        delete usersRole[account];
+        delete users[account];
         super._revokeRole(role, account);
     }
 }
