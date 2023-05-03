@@ -2,7 +2,12 @@
 pragma solidity ^0.8.12;
 
 import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+
+import "./DAOFactory.sol";
+import './CrowdsaleFactory.sol';
+import './ExchangeFactory.sol';
+import './TokenFactory.sol';
 
 contract DAO is AccessControlEnumerable {
     //We use this util set to easily manage existing roles
@@ -13,13 +18,18 @@ contract DAO is AccessControlEnumerable {
     string public realm;
     //Address of the owner
     address public owner;
+    //Address of the DAOFactory that generated this contract
+    DAOFactory public daoFactory;
+    CrowdsaleFactory public crowdsaleFactory;
+    ExchangeFactory public exchangeFactory;
+    TokenFactory public tokenFactory;
 
     //DAO's name, its uniqueness shall be managed by a Factory contract
     string public name;
-    //External project requirement, it states the ID of a place inside a map. Each DAO has to be linked to a given place
+    //It states the ID of a place inside a map. Each DAO has to be linked to a given place
     string public firstlifePlaceID;
 
-    //External proejct requirement, DAO's description
+    //DAO's description
     string public description_cid;
     //Specifies whether you can join this DAO freely or under invitation
     bool public isInviteOnly = false;
@@ -164,15 +174,26 @@ contract DAO is AccessControlEnumerable {
     event UserTokenAuthorizationRevoked(address indexed by, address user, string token);
 
     constructor(
-
+        address _owner,
+        string memory _name,
+        string memory _description,
+        string memory _firstlifePlaceID,
+        address _tokenFactory,
+        address _crowdsaleFactory,
+        address _exchangeFactory,
+        address _daoFactory
     ){
         realm = "dao";
-        owner = msg.sender;
+        owner = _owner;
         name = "Test_DAO";
-        firstlifePlaceID = "paoloBorsellinoFID";
+        firstlifePlaceID = _firstlifePlaceID;
         description_cid = "La best residenza da quittare asap";
+        daoFactory = DAOFactory(_daoFactory);
+        tokenFactory = TokenFactory(_tokenFactory);
+        crowdsaleFactory = CrowdsaleFactory(_crowdsaleFactory);
+        exchangeFactory = ExchangeFactory(_crowdsaleFactory);
         isInviteOnly = false;
-        _grantRole(OWNER_ROLE, msg.sender);
+        _grantRole(OWNER_ROLE, owner);
         //We setup the role hierarchy in terms of admin role:
         //OWNER -> ADMIN -> SUPERVISOR -> USER
         _setRoleAdmin(ADMIN_ROLE, OWNER_ROLE);
@@ -207,39 +228,39 @@ contract DAO is AccessControlEnumerable {
         _grantPermission(DaoPermission.exchange_setadmin, OWNER_ROLE);
         _grantPermission(DaoPermission.exchange_canmanage, OWNER_ROLE);
         _grantPermission(DaoPermission.invite_switch, OWNER_ROLE);
-        //ADMIN, we use role safe version from now on to ensure the owner doesn't miss any permission :)
-        grantPermission(DaoPermission.token_all, ADMIN_ROLE);
-        grantPermission(DaoPermission.token_specific, ADMIN_ROLE);
-        grantPermission(DaoPermission.token_transfer, ADMIN_ROLE);
-        grantPermission(DaoPermission.token_create, ADMIN_ROLE);
-        grantPermission(DaoPermission.token_mint, ADMIN_ROLE);
-        grantPermission(DaoPermission.token_auth, ADMIN_ROLE);
-        grantPermission(DaoPermission.token_canmanage, ADMIN_ROLE);
-        grantPermission(DaoPermission.crowd_create, ADMIN_ROLE);
-        grantPermission(DaoPermission.crowd_join, ADMIN_ROLE);
-        grantPermission(DaoPermission.crowd_unlock, ADMIN_ROLE);
-        grantPermission(DaoPermission.crowd_refund, ADMIN_ROLE);
-        grantPermission(DaoPermission.crowd_stop, ADMIN_ROLE);
-        grantPermission(DaoPermission.crowd_setadmin, ADMIN_ROLE);
-        grantPermission(DaoPermission.crowd_canmanage, ADMIN_ROLE);
-        grantPermission(DaoPermission.exchange_create, ADMIN_ROLE);
-        grantPermission(DaoPermission.exchange_cancel, ADMIN_ROLE);
-        grantPermission(DaoPermission.exchange_renew, ADMIN_ROLE);
-        grantPermission(DaoPermission.exchange_accept, ADMIN_ROLE);
-        grantPermission(DaoPermission.exchange_refill, ADMIN_ROLE);
-        grantPermission(DaoPermission.exchange_setadmin, ADMIN_ROLE);
-        grantPermission(DaoPermission.exchange_canmanage, ADMIN_ROLE);
-        grantPermission(DaoPermission.invite_switch, ADMIN_ROLE);
+        //ADMIN
+        _grantPermission(DaoPermission.token_all, ADMIN_ROLE);
+        _grantPermission(DaoPermission.token_specific, ADMIN_ROLE);
+        _grantPermission(DaoPermission.token_transfer, ADMIN_ROLE);
+        _grantPermission(DaoPermission.token_create, ADMIN_ROLE);
+        _grantPermission(DaoPermission.token_mint, ADMIN_ROLE);
+        _grantPermission(DaoPermission.token_auth, ADMIN_ROLE);
+        _grantPermission(DaoPermission.token_canmanage, ADMIN_ROLE);
+        _grantPermission(DaoPermission.crowd_create, ADMIN_ROLE);
+        _grantPermission(DaoPermission.crowd_join, ADMIN_ROLE);
+        _grantPermission(DaoPermission.crowd_unlock, ADMIN_ROLE);
+        _grantPermission(DaoPermission.crowd_refund, ADMIN_ROLE);
+        _grantPermission(DaoPermission.crowd_stop, ADMIN_ROLE);
+        _grantPermission(DaoPermission.crowd_setadmin, ADMIN_ROLE);
+        _grantPermission(DaoPermission.crowd_canmanage, ADMIN_ROLE);
+        _grantPermission(DaoPermission.exchange_create, ADMIN_ROLE);
+        _grantPermission(DaoPermission.exchange_cancel, ADMIN_ROLE);
+        _grantPermission(DaoPermission.exchange_renew, ADMIN_ROLE);
+        _grantPermission(DaoPermission.exchange_accept, ADMIN_ROLE);
+        _grantPermission(DaoPermission.exchange_refill, ADMIN_ROLE);
+        _grantPermission(DaoPermission.exchange_setadmin, ADMIN_ROLE);
+        _grantPermission(DaoPermission.exchange_canmanage, ADMIN_ROLE);
+        _grantPermission(DaoPermission.invite_switch, ADMIN_ROLE);
         //SUPERVISOR
-        grantPermission(DaoPermission.token_specific, SUPERVISOR_ROLE);
-        grantPermission(DaoPermission.token_transfer, SUPERVISOR_ROLE);
-        grantPermission(DaoPermission.token_canmanage, SUPERVISOR_ROLE);
-        grantPermission(DaoPermission.crowd_join, SUPERVISOR_ROLE);
-        grantPermission(DaoPermission.crowd_refund, SUPERVISOR_ROLE);
-        grantPermission(DaoPermission.crowd_canmanage, SUPERVISOR_ROLE);
-        grantPermission(DaoPermission.exchange_accept, SUPERVISOR_ROLE);
-        grantPermission(DaoPermission.exchange_refill, SUPERVISOR_ROLE);
-        grantPermission(DaoPermission.exchange_canmanage, SUPERVISOR_ROLE);
+        _grantPermission(DaoPermission.token_specific, SUPERVISOR_ROLE);
+        _grantPermission(DaoPermission.token_transfer, SUPERVISOR_ROLE);
+        _grantPermission(DaoPermission.token_canmanage, SUPERVISOR_ROLE);
+        _grantPermission(DaoPermission.crowd_join, SUPERVISOR_ROLE);
+        _grantPermission(DaoPermission.crowd_refund, SUPERVISOR_ROLE);
+        _grantPermission(DaoPermission.crowd_canmanage, SUPERVISOR_ROLE);
+        _grantPermission(DaoPermission.exchange_accept, SUPERVISOR_ROLE);
+        _grantPermission(DaoPermission.exchange_refill, SUPERVISOR_ROLE);
+        _grantPermission(DaoPermission.exchange_canmanage, SUPERVISOR_ROLE);
         //USER must have no permissions
     }
 
@@ -263,6 +284,7 @@ contract DAO is AccessControlEnumerable {
         require(!isInviteOnly, "can't freely join invite-only dao");
         delete invites[msg.sender];
         _grantRole(USER_ROLE, msg.sender);
+        daoFactory.addJoinedDaoTo(msg.sender);
         emit UserJoined(msg.sender, USER_ROLE);
     }
 
@@ -284,6 +306,7 @@ contract DAO is AccessControlEnumerable {
         _grantRole(invites[msg.sender], msg.sender);
         //We delete the invite since it's been accepted
         invites[msg.sender] = 0;
+        daoFactory.addJoinedDaoTo(msg.sender);
         emit UserJoined(msg.sender, users[msg.sender].role);
     }
 
@@ -327,6 +350,7 @@ contract DAO is AccessControlEnumerable {
         delete promotions[toKick];
         //Revoke role inherently deletes the kicked member struct, deleting their management permissions
         _revokeRole(users[toKick].role, toKick);
+        daoFactory.removeJoinedDaoFrom(toKick);
         emit UserKicked(msg.sender, toKick);
     }
 
@@ -485,6 +509,7 @@ contract DAO is AccessControlEnumerable {
         return users[account].role;
     }
 
+    //Returns all the members of the given role
     function getRoleMembers(bytes32 role) public view returns(address[] memory) {
         uint256 memberCount = getRoleMemberCount(role);
         address[] memory members = new address[](memberCount);
