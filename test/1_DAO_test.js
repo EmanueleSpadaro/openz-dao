@@ -1,5 +1,8 @@
 const DaoFactory = artifacts.require("DAOFactory");
 const DaoContract = artifacts.require("DAO");
+const TokenFactory = artifacts.require('TokenFactory');
+const CrowdsaleFactory = artifacts.require('CrowdsaleFactory');
+const ExchangeFactory = artifacts.require('ExchangeFactory');
 const { log } = require('console');
 const util = require('util');
 
@@ -9,6 +12,12 @@ contract("DAOFactory", async (accounts) => {
     const supervisor = accounts[2];
     const supervisor2 = accounts[3];
     const user = accounts[4];
+
+    const testDao = {
+        name: 'TestName',
+        firstlifePlaceID: 'TestPlaceID',
+        description_cid: 'TestDescription'
+    };
     const getUserDao = async (daoOwner) => {
         const daoFactoryInstance = await DaoFactory.deployed();
         const daoContracts = await daoFactoryInstance.getUserDaos(daoOwner);
@@ -18,8 +27,23 @@ contract("DAOFactory", async (accounts) => {
     describe("DAO Creation", _ => {
         it("Creating DAO", async () => {
             const daoFactoryInstance = await DaoFactory.deployed();
-            await daoFactoryInstance.createDAO({from: owner});
+            const tokenFactory = await TokenFactory.deployed();
+            const crowdsaleFactory = await CrowdsaleFactory.deployed();
+            const exchangeFactory = await ExchangeFactory.deployed();
+            await daoFactoryInstance.createDAO(
+                testDao.name, testDao.firstlifePlaceID, testDao.description_cid,
+                tokenFactory.address, crowdsaleFactory.address, exchangeFactory.address,
+                {from: owner});
         });
+        it("DAOFactory registered it as joined by the user", async () => {
+            const daoFactoryInstance = await DaoFactory.deployed();
+            const daoInstance = await getUserDao(owner);
+            assert.equal(
+                (await daoFactoryInstance.getUserDaos(owner))[0],
+                daoInstance.address,
+                "DAOFactory not properly registered as joined by the user"
+            );
+        })
     })
     //This section aims to ensure that the given rank hierarchy is actually set correctly: OWNER > ADMIN > SUPERVISOR > USER
     describe("Hierarchy test", _ => {

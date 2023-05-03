@@ -5,6 +5,9 @@ import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import "./DAOFactory.sol";
+import './CrowdsaleFactory.sol';
+import './ExchangeFactory.sol';
+import './TokenFactory.sol';
 
 contract DAO is AccessControlEnumerable {
     //We use this util set to easily manage existing roles
@@ -17,6 +20,9 @@ contract DAO is AccessControlEnumerable {
     address public owner;
     //Address of the DAOFactory that generated this contract
     DAOFactory public daoFactory;
+    CrowdsaleFactory public crowdsaleFactory;
+    ExchangeFactory public exchangeFactory;
+    TokenFactory public tokenFactory;
 
     //DAO's name, its uniqueness shall be managed by a Factory contract
     string public name;
@@ -169,7 +175,12 @@ contract DAO is AccessControlEnumerable {
 
     constructor(
         address _owner,
+        string memory _name,
+        string memory _description,
         string memory _firstlifePlaceID,
+        address _tokenFactory,
+        address _crowdsaleFactory,
+        address _exchangeFactory,
         address _daoFactory
     ){
         realm = "dao";
@@ -178,6 +189,9 @@ contract DAO is AccessControlEnumerable {
         firstlifePlaceID = _firstlifePlaceID;
         description_cid = "La best residenza da quittare asap";
         daoFactory = DAOFactory(_daoFactory);
+        tokenFactory = TokenFactory(_tokenFactory);
+        crowdsaleFactory = CrowdsaleFactory(_crowdsaleFactory);
+        exchangeFactory = ExchangeFactory(_crowdsaleFactory);
         isInviteOnly = false;
         _grantRole(OWNER_ROLE, owner);
         //We setup the role hierarchy in terms of admin role:
@@ -270,6 +284,7 @@ contract DAO is AccessControlEnumerable {
         require(!isInviteOnly, "can't freely join invite-only dao");
         delete invites[msg.sender];
         _grantRole(USER_ROLE, msg.sender);
+        daoFactory.addJoinedDaoTo(msg.sender);
         emit UserJoined(msg.sender, USER_ROLE);
     }
 
@@ -291,6 +306,7 @@ contract DAO is AccessControlEnumerable {
         _grantRole(invites[msg.sender], msg.sender);
         //We delete the invite since it's been accepted
         invites[msg.sender] = 0;
+        daoFactory.addJoinedDaoTo(msg.sender);
         emit UserJoined(msg.sender, users[msg.sender].role);
     }
 
@@ -334,6 +350,7 @@ contract DAO is AccessControlEnumerable {
         delete promotions[toKick];
         //Revoke role inherently deletes the kicked member struct, deleting their management permissions
         _revokeRole(users[toKick].role, toKick);
+        daoFactory.removeJoinedDaoFrom(toKick);
         emit UserKicked(msg.sender, toKick);
     }
 
@@ -492,6 +509,7 @@ contract DAO is AccessControlEnumerable {
         return users[account].role;
     }
 
+    //Returns all the members of the given role
     function getRoleMembers(bytes32 role) public view returns(address[] memory) {
         uint256 memberCount = getRoleMemberCount(role);
         address[] memory members = new address[](memberCount);
