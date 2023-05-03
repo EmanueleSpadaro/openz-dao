@@ -168,16 +168,18 @@ contract DAO is AccessControlEnumerable {
     event UserTokenAuthorizationRevoked(address indexed by, address user, string token);
 
     constructor(
+        address _owner,
+        string memory _firstlifePlaceID,
         address _daoFactory
     ){
         realm = "dao";
-        owner = msg.sender;
+        owner = _owner;
         name = "Test_DAO";
-        firstlifePlaceID = "paoloBorsellinoFID";
+        firstlifePlaceID = _firstlifePlaceID;
         description_cid = "La best residenza da quittare asap";
         daoFactory = DAOFactory(_daoFactory);
         isInviteOnly = false;
-        _grantRole(OWNER_ROLE, msg.sender);
+        _grantRole(OWNER_ROLE, owner);
         //We setup the role hierarchy in terms of admin role:
         //OWNER -> ADMIN -> SUPERVISOR -> USER
         _setRoleAdmin(ADMIN_ROLE, OWNER_ROLE);
@@ -212,39 +214,39 @@ contract DAO is AccessControlEnumerable {
         _grantPermission(DaoPermission.exchange_setadmin, OWNER_ROLE);
         _grantPermission(DaoPermission.exchange_canmanage, OWNER_ROLE);
         _grantPermission(DaoPermission.invite_switch, OWNER_ROLE);
-        //ADMIN, we use role safe version from now on to ensure the owner doesn't miss any permission :)
-        grantPermission(DaoPermission.token_all, ADMIN_ROLE);
-        grantPermission(DaoPermission.token_specific, ADMIN_ROLE);
-        grantPermission(DaoPermission.token_transfer, ADMIN_ROLE);
-        grantPermission(DaoPermission.token_create, ADMIN_ROLE);
-        grantPermission(DaoPermission.token_mint, ADMIN_ROLE);
-        grantPermission(DaoPermission.token_auth, ADMIN_ROLE);
-        grantPermission(DaoPermission.token_canmanage, ADMIN_ROLE);
-        grantPermission(DaoPermission.crowd_create, ADMIN_ROLE);
-        grantPermission(DaoPermission.crowd_join, ADMIN_ROLE);
-        grantPermission(DaoPermission.crowd_unlock, ADMIN_ROLE);
-        grantPermission(DaoPermission.crowd_refund, ADMIN_ROLE);
-        grantPermission(DaoPermission.crowd_stop, ADMIN_ROLE);
-        grantPermission(DaoPermission.crowd_setadmin, ADMIN_ROLE);
-        grantPermission(DaoPermission.crowd_canmanage, ADMIN_ROLE);
-        grantPermission(DaoPermission.exchange_create, ADMIN_ROLE);
-        grantPermission(DaoPermission.exchange_cancel, ADMIN_ROLE);
-        grantPermission(DaoPermission.exchange_renew, ADMIN_ROLE);
-        grantPermission(DaoPermission.exchange_accept, ADMIN_ROLE);
-        grantPermission(DaoPermission.exchange_refill, ADMIN_ROLE);
-        grantPermission(DaoPermission.exchange_setadmin, ADMIN_ROLE);
-        grantPermission(DaoPermission.exchange_canmanage, ADMIN_ROLE);
-        grantPermission(DaoPermission.invite_switch, ADMIN_ROLE);
+        //ADMIN
+        _grantPermission(DaoPermission.token_all, ADMIN_ROLE);
+        _grantPermission(DaoPermission.token_specific, ADMIN_ROLE);
+        _grantPermission(DaoPermission.token_transfer, ADMIN_ROLE);
+        _grantPermission(DaoPermission.token_create, ADMIN_ROLE);
+        _grantPermission(DaoPermission.token_mint, ADMIN_ROLE);
+        _grantPermission(DaoPermission.token_auth, ADMIN_ROLE);
+        _grantPermission(DaoPermission.token_canmanage, ADMIN_ROLE);
+        _grantPermission(DaoPermission.crowd_create, ADMIN_ROLE);
+        _grantPermission(DaoPermission.crowd_join, ADMIN_ROLE);
+        _grantPermission(DaoPermission.crowd_unlock, ADMIN_ROLE);
+        _grantPermission(DaoPermission.crowd_refund, ADMIN_ROLE);
+        _grantPermission(DaoPermission.crowd_stop, ADMIN_ROLE);
+        _grantPermission(DaoPermission.crowd_setadmin, ADMIN_ROLE);
+        _grantPermission(DaoPermission.crowd_canmanage, ADMIN_ROLE);
+        _grantPermission(DaoPermission.exchange_create, ADMIN_ROLE);
+        _grantPermission(DaoPermission.exchange_cancel, ADMIN_ROLE);
+        _grantPermission(DaoPermission.exchange_renew, ADMIN_ROLE);
+        _grantPermission(DaoPermission.exchange_accept, ADMIN_ROLE);
+        _grantPermission(DaoPermission.exchange_refill, ADMIN_ROLE);
+        _grantPermission(DaoPermission.exchange_setadmin, ADMIN_ROLE);
+        _grantPermission(DaoPermission.exchange_canmanage, ADMIN_ROLE);
+        _grantPermission(DaoPermission.invite_switch, ADMIN_ROLE);
         //SUPERVISOR
-        grantPermission(DaoPermission.token_specific, SUPERVISOR_ROLE);
-        grantPermission(DaoPermission.token_transfer, SUPERVISOR_ROLE);
-        grantPermission(DaoPermission.token_canmanage, SUPERVISOR_ROLE);
-        grantPermission(DaoPermission.crowd_join, SUPERVISOR_ROLE);
-        grantPermission(DaoPermission.crowd_refund, SUPERVISOR_ROLE);
-        grantPermission(DaoPermission.crowd_canmanage, SUPERVISOR_ROLE);
-        grantPermission(DaoPermission.exchange_accept, SUPERVISOR_ROLE);
-        grantPermission(DaoPermission.exchange_refill, SUPERVISOR_ROLE);
-        grantPermission(DaoPermission.exchange_canmanage, SUPERVISOR_ROLE);
+        _grantPermission(DaoPermission.token_specific, SUPERVISOR_ROLE);
+        _grantPermission(DaoPermission.token_transfer, SUPERVISOR_ROLE);
+        _grantPermission(DaoPermission.token_canmanage, SUPERVISOR_ROLE);
+        _grantPermission(DaoPermission.crowd_join, SUPERVISOR_ROLE);
+        _grantPermission(DaoPermission.crowd_refund, SUPERVISOR_ROLE);
+        _grantPermission(DaoPermission.crowd_canmanage, SUPERVISOR_ROLE);
+        _grantPermission(DaoPermission.exchange_accept, SUPERVISOR_ROLE);
+        _grantPermission(DaoPermission.exchange_refill, SUPERVISOR_ROLE);
+        _grantPermission(DaoPermission.exchange_canmanage, SUPERVISOR_ROLE);
         //USER must have no permissions
     }
 
